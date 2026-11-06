@@ -76,6 +76,7 @@ private:
     void RequestLoadNxFont(HLERequestContext& ctx);
     void GetBuiltInFontSharedMemory(HLERequestContext& ctx);
     void GetBuiltInFontData(HLERequestContext& ctx);
+    void GetBuiltInFontDataSet(HLERequestContext& ctx);
 
     struct Impl;
     std::unique_ptr<Impl> impl;
