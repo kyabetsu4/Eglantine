@@ -126,6 +126,50 @@ void LoadOverrides(std::uint64_t program_id, const VideoCore::RendererBase& rend
         case TitleID::NinjaGaidenRagebound:
             Settings::values.use_squashed_iterated_blend = true;
             break;
+        case TitleID::MarioTennisFever:
+            // Low accuracy lets the GPU thread split (30 -> 60 fps in a match); Balanced fences keep
+            // occlusion reports in the query cache, or its conditional rendering hides the characters.
+            OverrideIfGlobal(Settings::values.gpu_accuracy, Settings::GpuAccuracy::Low);
+            OverrideIfGlobal(Settings::values.gpu_fence_behavior, Settings::GpuFenceBehavior::Balanced);
+            // Reactive flushing takes read permission off every page the GPU caches, so each guest
+            // CPU read of one takes the slow path (~12% of the main core in title 1, NX2_NOTES row
+            // 115). Switch 2 titles have read traps instead (row 150), which protect only pages the
+            // GPU wrote, once each, and which only run with reactive flushing off.
+            OverrideIfGlobal(Settings::values.use_reactive_flushing, false);
+            break;
+        case TitleID::HyruleWarriorsAgeOfImprisonment:
+            // Game time follows the guest counter, which a faster CPU clock scales (Boost ran the
+            // game at 1.7x speed); low accuracy for the GPU thread split. Balanced fences signal
+            // syncpoints once the host GPU is done: earlier, the game reads GPU-written buffers
+            // right away and each read waits for the whole host GPU queue.
+            OverrideIfGlobal(Settings::values.cpu_clock, Settings::CpuClock::Normal);
+            OverrideIfGlobal(Settings::values.gpu_accuracy, Settings::GpuAccuracy::Low);
+            OverrideIfGlobal(Settings::values.gpu_fence_behavior, Settings::GpuFenceBehavior::Balanced);
+            // The game reads GPU-written buffer pages every frame; each ordered read waited for the
+            // whole host GPU queue (about 7 ms, 45 instead of 60 fps in combat).
+            Settings::values.preemptive_cpu_reads = true;
+            break;
+        case TitleID::DonkeyKongBananza:
+            // Same per-frame reads of GPU-written buffers: each ordered read waited for the host
+            // GPU, the game measured the stall as frame time and dropped to swap interval 2-3
+            // (about 22 instead of 59 presents a second in the first area, RADV, docked 2x).
+            Settings::values.preemptive_cpu_reads = true;
+            // GPU accuracy High kept the GPU thread split off; fps drops below 30 then slowed the
+            // game itself down. Low + no reactive flushing (as Mario Tennis Fever) keeps it at speed.
+            OverrideIfGlobal(Settings::values.gpu_accuracy, Settings::GpuAccuracy::Low);
+            OverrideIfGlobal(Settings::values.use_reactive_flushing, false);
+            // The game times its GPU work with query timestamps: at the Normal GPU clock it saw
+            // the emulator's frame time, lowered its resolution to 960x540 and held swap interval
+            // 2-3 (~25 fps). Its game step follows the interval it requests (held to 2 vblanks
+            // while it asked for 1 it ran at half speed), so the clock only changes which it picks.
+            OverrideIfGlobal(Settings::values.gpu_clock, Settings::GpuClock::Boost);
+            break;
+        case TitleID::XenobladeChroniclesDENintendoSwitch2Edition:
+            // The game reads a 32x1 GPU-written texture back every frame (two of them, alternating);
+            // each ordered read emptied the whole host GPU queue (~70 waits a second). Opening intro
+            // on a RX 9070 XT: 26-32 ms frames before, 16.7 ms (60 fps) after.
+            Settings::values.preemptive_cpu_reads = true;
+            break;
         default:
             break;
     }
