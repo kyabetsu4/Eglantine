@@ -385,6 +385,7 @@ private slots:
     void OnToggleDockedMode();
     void OnToggleGpuAccuracy();
     void OnToggleAdaptingFilter();
+    void OnPulseMorningReset();
     void OnConfigurePerGame();
     void OnLoadAmiibo();
     void OnOpenRootDataFolder();

@@ -88,6 +88,8 @@
     <addaction name="action_Stop"/>
     <addaction name="action_Restart"/>
     <addaction name="separator"/>
+    <addaction name="action_Fast_Complete_Build"/>
+    <addaction name="separator"/>
     <addaction name="action_Configure"/>
     <addaction name="action_Configure_Current_Game"/>
    </widget>
@@ -384,6 +386,14 @@
    </property>
    <property name="text">
     <string>F&amp;ullscreen</string>
+   </property>
+  </action>
+  <action name="action_Fast_Complete_Build">
+   <property name="enabled">
+    <bool>false</bool>
+   </property>
+   <property name="text">
+    <string>Fast Complete Build (5:00 AM Pulse)</string>
    </property>
   </action>
   <action name="action_Restart">
