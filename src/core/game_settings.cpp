@@ -119,8 +119,20 @@ EnvironmentInfo DetectEnvironment(const VideoCore::RendererBase& renderer) {
     return env;
 }
 
+// A title default only where the user kept the global value; set as the per-game value, which
+// RestoreGlobalState drops again when emulation stops (the global config is never touched).
+template <typename T, bool ranged>
+static void OverrideIfGlobal(Settings::SwitchableSetting<T, ranged>& setting, T value) {
+    if (!setting.UsingGlobal()) {
+        return;
+    }
+    setting.SetGlobal(false);
+    setting.SetValue(value);
+}
+
 void LoadOverrides(std::uint64_t program_id, const VideoCore::RendererBase& renderer) {
     const auto env = DetectEnvironment(renderer);
+    Settings::values.preemptive_cpu_reads = false;
 
     switch (static_cast<TitleID>(program_id)) {
         case TitleID::NinjaGaidenRagebound:
