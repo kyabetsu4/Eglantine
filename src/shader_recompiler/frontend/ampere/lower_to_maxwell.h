@@ -1379,11 +1379,12 @@ inline LoweredProgram LowerToMaxwell(std::span<const Instruction> code) {
             if (condition > 6 || target == ~0U || a == ~0U || b == ~0U ||
                 insn.Bits(12, 4) != 7 || (insn.words[2] & ~0x07800000U) != 0x08000000U)
                 return fail(index, "native uniform select mode");
-            if (opcode == 0x887 && index > 0 && condition == 0 && insn.words[1] <= 0x7ffff &&
+            if (opcode == 0x887 && index > 0 && insn.words[1] <= 0x7ffff &&
                 code[index - 1].Bits(0, 12) == 0x88c &&
                 code[index - 1].Bits(24, 8) == insn.Bits(24, 8) &&
-                code[index - 1].words[1] == insn.words[1] && code[index - 1].words[2] == 0x0bf01070 &&
-                insn.words[2] == 0x08000000) {
+                code[index - 1].words[1] == insn.words[1] &&
+                code[index - 1].words[2] == (0x0bf01070U | (condition << 17)) &&
+                insn.words[2] == (0x08000000U | (condition << 23))) {
                 // Preserve the unsigned clamp idiom for indirect-table analysis.
                 emit(0x3820000000070000ULL | target | (u64{a} << 8) |
                      (u64{insn.words[1]} << 20) | (u64{7} << 39));
