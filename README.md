@@ -15,7 +15,7 @@
   <br>
 </h1>
 
-<h4 align="center"><b>Orcheglichiined</b> is a high-performance synthesized fork of <b>Eglantine</b>, integrating the best performance optimizations, compatibility fixes, and stability patches from <b>Orchid</b>, <b>Lichii</b>, and <b>Eglantine Upstream</b> into a unified build.
+<h4 align="center"><b>Orcheglichiined</b> is a high-performance synthesized build of <b>Eglantine</b>, combining the performance optimizations, stability patches, and compatibility fixes from <b>Orchid</b>, <b>Lichii</b>, and <b>Eglantine Upstream</b> into a unified client.
 </h4>
 
 <p align="center">
@@ -26,48 +26,51 @@
 </p>
 
 <p align="center">
-  <a href="#about-orcheglichiined">About</a> |
-  <a href="#integrated-improvements">Integrated Improvements</a> |
+  <a href="#about">About</a> |
+  <a href="#core-highlights">Highlights</a> |
   <a href="#compatibility">Compatibility</a> |
   <a href="#building">Building</a> |
+  <a href="#releases">Releases</a> |
   <a href="#license">License</a>
 </p>
 
 ---
 
-## About Orcheglichiined
+## About
 
-The Switch 2 emulation landscape features several active community efforts independently tackling performance and graphics bugs across different titles. **Orcheglichiined** fuses these branches together:
+The Switch 2 emulation landscape features several active community efforts independently tackling performance, game logic, and graphics bugs across different titles. 
 
-* 🌸 **Orchid** ([MythosOfs/Orchid](https://github.com/MythosOfs/Orchid)): Vulkan texture upload synchronization, per-title engine overrides, and CPU-GPU readback decoupling.
-* 🍃 **Lichii** ([zortos293/Lichii](https://github.com/zortos293/Lichii)): OS-level `HostTiming` event sleeping, memory page zero-trimming, robust filesystem parsing, and shader recompiler concurrency hardening.
-* 🌺 **Eglantine Upstream** ([Eglantine-Community](https://github.com/Eglantine-Community/Eglantine)): Intel Arc driver fixes, compute pipeline 64 SSBO expansions, and clean pipeline cache shutdown routines.
+**Orcheglichiined** unites these efforts into a single, cohesive branch:
+* 🌸 **Orchid** ([MythosOfs/Orchid](https://github.com/MythosOfs/Orchid)) — Vulkan pipeline synchronization and per-title engine overrides.
+* 🍃 **Lichii** ([zortos293/Lichii](https://github.com/zortos293/Lichii)) — Resource efficiency, OS-level timer thread sleeping, and filesystem resilience.
+* 🌺 **Eglantine Upstream** ([Eglantine-Community](https://github.com/Eglantine-Community/Eglantine)) — Core driver improvements, compute pipeline expansions, and cache handling.
 
 ---
 
-## Integrated Improvements
+## Core Highlights
 
-| Subsystem | Source | Key Enhancement | Real-World Impact |
-| :--- | :--- | :--- | :--- |
-| **Video / Vulkan** | Orchid | Synchronize texture uploads & copies across all active pipeline stages | Eliminates texture tearing and missing render passes during fast scene transitions. |
-| **Core Settings** | Orchid | Per-title engine overrides & preemptive CPU reads | *Xenoblade Chronicles DE (Switch 2 Edition)* device waits drop from ~70/s to <1/s (opening intro lifts from 26–32 fps to full 60 fps). Per-game profiles for *Mario Tennis Fever*, *Hyrule Warriors*, and *Donkey Kong Bananza*. |
-| **Core Timing** | Lichii | OS-level waitable timer event sleeping (`Event::SleepFor`) | Replaces busy-wait polling in `HostTiming`. Reduces idle CPU consumption from ~99.7% of an entire CPU core down to **1–4%**. |
-| **Memory / Common** | Lichii | Unconditional all-zero guest memory page trimming | Lowers overall RAM footprint by stripping zeroed heap pages. |
-| **Virtual FS** | Lichii | Hardened PFS0, RomFS, NCA, and XCI parsers | Prevents silent crashes and heap corruptions when loading malformed or truncated package files. |
-| **Shader Recompiler** | Lichii | Eliminated static `clip_distance_written` race condition in SPIR-V emit | Fixes multithreaded shader compilation crashes on high core-count CPUs. |
-| **Vulkan / Drivers** | Upstream | Intel Arc optimizations for *Mario Kart World* | Resolves broken shaders and missing geometry on Intel Arc / Xe graphics. |
-| **Compute Shaders** | Upstream | Up to 64 storage buffer bindings (SSBOs) | Prevents compute pipeline crashes in modern Switch 2 titles requiring wide buffer arrays. |
-| **Pipeline Cache** | Upstream | Wait for active shader builds prior to cache flush on exit | Prevents pipeline cache corruption when closing the emulator while shaders compile. |
+* ⚡ **CPU Efficiency & Pacing:** Replaces busy-wait polling in host timing loops with OS-level waitable timer sleeps, drastically reducing host CPU overhead and power draw without degrading frame pacing.
+* 🎮 **Graphics & Driver Compatibility:** Enhances Vulkan stage synchronization for smooth texture uploads, expands compute shader buffer capabilities, and integrates vendor fixes for Intel Arc and modern GPUs.
+* 🛡️ **Memory & Filesystem Resilience:** Hardens virtual filesystem parsers against malformed packages and trims redundant zeroed guest memory pages to keep RAM usage lean.
+* ⚙️ **Per-Title Engine Tuning:** Includes tailored engine profiles for demanding titles that resolve GPU readback stalls and optimize accuracy settings.
+
+---
+
+## Releases & Changelogs
+
+Specific commit histories, benchmark metrics, and per-title patch notes are documented in GitHub Releases rather than the project README.
+
+👉 **Check the [Releases](https://github.com/kyabetsu4/Eglantine/releases) page for downloadable builds and detailed version changelogs.**
 
 ---
 
 ## Compatibility
 
 Capable of running titles such as:
-* **Mario Kart World:** Full speed with Intel Arc + AMD/NVIDIA Vulkan fixes.
-* **Xenoblade Chronicles DE (Switch 2 Edition):** Fluid 60 fps intro & gameplay via preemptive CPU reads.
-* **Donkey Kong Bananza / Hyrule Warriors:** Low GPU accuracy + balanced fence profiles preventing frame stalls.
-* **Splatoon Raiders:** Variable performance with active shader pipeline improvements.
+* **Mario Kart World:** Full speed with broad GPU vendor compatibility (Intel Arc, AMD, NVIDIA).
+* **Xenoblade Chronicles DE (Switch 2 Edition):** Fluid 60 fps gameplay via readback-optimized engine overrides.
+* **Donkey Kong Bananza / Hyrule Warriors:** Tuned GPU accuracy and balanced fence profiles to eliminate hitching.
+* **Splatoon Raiders:** Variable performance with active compute and shader pipeline optimizations.
 
 ---
 
@@ -93,7 +96,7 @@ The resulting binaries will be assembled in `pc-build/dist/eglantine-windows-x86
 
 ## Upstream & Acknowledgements
 
-This build is maintained as a personal synthesized branch on [`kyabetsu4/Eglantine`](https://github.com/kyabetsu4/Eglantine/tree/orcheglichiined). Special thanks to the developers and contributors of:
+Maintained as a personal synthesized branch on [`kyabetsu4/Eglantine`](https://github.com/kyabetsu4/Eglantine/tree/orcheglichiined). Special thanks to the developers and contributors of:
 * **Eglantine:** [Djihads80](https://github.com/Djihads80/Eglantine) & [Eglantine-Community](https://github.com/Eglantine-Community/Eglantine)
 * **Orchid:** [MythosOfs](https://github.com/MythosOfs/Orchid)
 * **Lichii:** [zortos293](https://github.com/zortos293/Lichii)
