@@ -24,6 +24,7 @@
 #include "common/settings.h"
 #include "common/stb.h"
 #include "core/core.h"
+#include "core/core_timing.h"
 #include "core/debugger/nx2_debug_server.h"
 #include "core/debugger/nx2_debug_tools.h"
 #include "core/frontend/framebuffer_layout.h"
@@ -420,6 +421,15 @@ json SampleThreads(ToolState& state, const json& params) {
     return {{"file", PathText(path)}, {"report", std::move(report)}};
 }
 
+json HostTiming(ToolState& state, const json& params) {
+    auto& stats = state.system.CoreTiming().host_wait_stats;
+    const bool previous = stats.load();
+    if (params.contains("stats")) {
+        stats = params.at("stats").get<bool>();
+    }
+    return {{"previous", previous}, {"stats", stats.load()}};
+}
+
 json ReadMemory(ToolState& state, const json& params) {
     const u64 address = AddressParam(params, "address");
     const u64 size = ReadSize(params, address);
@@ -652,6 +662,7 @@ Handlers MakeHandlers(const std::shared_ptr<ToolState>& state) {
         {"capture_frame", handler(CaptureFrame)},
         {"reject_shaders", handler(RejectShaders)},
         {"sample", handler(SampleThreads)},
+        {"host_timing", handler(HostTiming)},
         {"read_memory", handler(ReadMemory)},
         {"search_memory", handler(SearchMemory)},
         {"write_memory", handler(WriteMemory)},
