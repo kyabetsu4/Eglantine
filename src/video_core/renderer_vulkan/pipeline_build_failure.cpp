@@ -4,7 +4,7 @@
 #include <atomic>
 #include <optional>
 
-#include "common/logging/log.h"
+#include "common/logging.h"
 #include "common/memory_detect.h"
 #include "video_core/renderer_vulkan/pipeline_build_failure.h"
 
