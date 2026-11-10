@@ -19,12 +19,17 @@ public:
         // clang-format off
         static const FunctionInfo functions[] = {
             {10, D<&IGraphicsScaleController::GetCurrentGraphicsScale>, "GetCurrentGraphicsScale"},
+            {1050, D<&IGraphicsScaleController::Cmd1050>, "Cmd1050"},
         };
         // clang-format on
         RegisterHandlers(functions);
     }
 
 private:
+    Result Cmd1050() {
+        LOG_DEBUG(Service_AM, "(STUBBED) nx2:IGraphicsScaleController::Cmd1050 called");
+        R_SUCCEED();
+    }
     // The reply is 12 bytes; only the first word (the scale) is known. The other two used to be
     // left to the message buffer's leftovers.
     Result GetCurrentGraphicsScale(Out<u32> out_scale, Out<u32> out_unknown1, Out<u32> out_unknown2) {
