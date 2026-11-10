@@ -1674,7 +1674,7 @@ std::unique_ptr<ComputePipeline> PipelineCache::CreateComputePipeline(
                     max_shared_memory / 1024);
         program.shared_memory_size = max_shared_memory;
     }
-    const std::vector<u32> code{EmitSPIRV(profile, program)};
+    std::vector<u32> code{EmitSPIRV(profile, program)};
     device.SaveShader(code);
     vk::ShaderModule spv_module{BuildShader(device, code)};
 
@@ -1699,10 +1699,12 @@ std::unique_ptr<ComputePipeline> PipelineCache::CreateComputePipeline(
         spv_module.SetObjectNameEXT(name.c_str());
     }
     Common::ThreadWorker* const thread_worker{build_in_parallel ? &workers : nullptr};
+    const Shader::Info info{std::move(program.info)};
+    pools.ReleaseComputeContents(program, code, build_in_parallel);
     return std::make_unique<ComputePipeline>(device, scheduler, vulkan_pipeline_cache, descriptor_pool,
                                              guest_descriptor_queue, descriptor_buffer_ring,
                                              thread_worker, statistics,
-                                             &shader_notify, program.info, std::move(spv_module),
+                                             &shader_notify, info, std::move(spv_module),
                                              key.unique_hash);
 
 } catch (const Shader::Exception& exception) {
