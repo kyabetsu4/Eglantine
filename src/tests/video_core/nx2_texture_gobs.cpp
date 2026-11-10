@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include <algorithm>
+#include <array>
 #include <span>
+#include <utility>
 #include <vector>
 
 #include <catch2/catch_test_macros.hpp>
@@ -74,12 +76,7 @@ TEST_CASE("Switch 2 headers asking for Maxwell GOBs decode without the bit 5/6 s
     (void)VideoCommon::UnswizzleImage(gpu_memory, 0, info, tiled, decoded);
     REQUIRE(decoded == linear);
 
-    const VideoCommon::OverlapResult range{
-        .dirty_start = 0,
-        .dirty_end = tiled.size(),
-        .first_row = 0,
-        .row_count = 16,
-    };
-    const auto plan = VideoCommon::PlanUnswizzleImageRows(0, info, range);
+    const std::array<std::pair<u64, u64>, 1> ranges{{{0, tiled.size()}}};
+    const auto plan = VideoCommon::PlanUnswizzleImageRows(0, info, ranges);
     CHECK(plan.maxwell_gobs == maxwell);
 }
