@@ -140,7 +140,6 @@ public:
     u32 SharedMemorySize() const override { return 0; }
     std::array<u32, 3> WorkgroupSize() const override { return {1, 1, 1}; }
     bool HasHLEMacroState() const override { return false; }
-    bool HasNativeInstructions() const override { return true; }
     bool IsNativeProgram() const override { return true; }
     std::optional<Shader::ReplaceConstant> GetReplaceConstBuffer(u32, u32) override {
         return std::nullopt;
