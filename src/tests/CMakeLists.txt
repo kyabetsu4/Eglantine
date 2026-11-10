@@ -22,6 +22,7 @@ add_executable(tests
     common/undefined_fix.cpp
     common/unique_function.cpp
     common/zstd_compression.cpp
+    core/address_space.cpp
     core/core_timing.cpp
     core/game_settings.cpp
     core/file_sys_parsers.cpp

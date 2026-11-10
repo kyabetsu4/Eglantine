@@ -173,7 +173,7 @@ public:
                       KMemoryManager::Pool pool, bool immortal);
     Result Initialize(KernelCore& kernel, const Svc::CreateProcessParameter& params, std::span<const u32> user_caps,
                       KResourceLimit* res_limit, KMemoryManager::Pool pool,
-                      KProcessAddress aslr_space_start);
+                      KProcessAddress aslr_space_start, bool is_switch2 = false);
     void Exit(KernelCore& kernel);
 
     const char* GetName() const {
