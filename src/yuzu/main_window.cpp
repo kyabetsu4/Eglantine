@@ -4592,6 +4592,9 @@ void MainWindow::OnApplicationChanged(u64 program_id) {
     UpdateWindowTitle(title_name, title_version,
                       QtCommon::system->GPU().Renderer().GetDeviceVendor());
 
+    if (discord_rpc)
+        discord_rpc->Update();
+
     // Switch to record playtime for the running program
     if (play_time_manager)
         play_time_manager->SetProgramId(program_id);
