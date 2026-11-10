@@ -176,6 +176,14 @@ void LoadOverrides(std::uint64_t program_id, const VideoCore::RendererBase& rend
             // while it asked for 1 it ran at half speed), so the clock only changes which it picks.
             OverrideIfGlobal(Settings::values.gpu_clock, Settings::GpuClock::Boost);
             break;
+        case TitleID::SuperMarioBrosWonderNintendoSwitch2Edition:
+            // High accuracy keeps the GPU thread split off, and reactive flushing had ~34 MB of
+            // GPU-written buffers copied back per frame once the game had read a page of them.
+            OverrideIfGlobal(Settings::values.gpu_accuracy, Settings::GpuAccuracy::Low);
+            OverrideIfGlobal(Settings::values.gpu_fence_behavior, Settings::GpuFenceBehavior::Balanced);
+            OverrideIfGlobal(Settings::values.use_reactive_flushing, false);
+            Settings::UpdateGPUAccuracy();
+            break;
         case TitleID::XenobladeChroniclesDENintendoSwitch2Edition:
             // The game reads a 32x1 GPU-written texture back every frame (two of them, alternating);
             // each ordered read emptied the whole host GPU queue (~70 waits a second). Opening intro
