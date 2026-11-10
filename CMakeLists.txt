@@ -114,8 +114,7 @@ if(ENABLE_WERROR)
 endif()
 
 
-# Lossless Scaling frame generation. Only Android.
-option(ENABLE_LSFG "Enable frame generation (LSFG and FSR 3 Fluid Motion)" ON)
+option(ENABLE_FRAME_GEN "Enable built-in FSR 3 optical flow frame generation" ON)
 
 option(ENABLE_RESHADE "Enable ReShade FX post-processing effects" ON)
 

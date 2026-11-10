@@ -486,9 +486,6 @@ struct Values {
                                                         false,
                                                         &frame_gen};
 
-    SwitchableSetting<bool> frame_gen_dump_flow{linkage, false, "frame_gen_dump_flow",
-                                                Category::Renderer};
-
     SwitchableSetting<bool> use_asynchronous_gpu_emulation{linkage, true, "use_asynchronous_gpu_emulation",
                                                            Category::Renderer};
     // *nix platforms may have issues with the borderless windowed fullscreen mode.
@@ -970,6 +967,8 @@ extern Values values;
 
 constexpr u32 MIN_FRAME_GEN_MULTIPLIER = 2;
 constexpr u32 MAX_FRAME_GEN_MULTIPLIER = 4;
+
+[[nodiscard]] bool FrameGenEnabled();
 
 [[nodiscard]] u32 FrameGenMultiplier();
 

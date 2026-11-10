@@ -34,7 +34,7 @@ static const std::map<Settings::AntiAliasing, QString> anti_aliasing_texts_map =
 };
 
 static const std::map<Settings::FrameGenType, QString> frame_gen_type_texts_map = {
-    {Settings::FrameGenType::Lsfg, QStringLiteral(QT_TRANSLATE_NOOP("MainWindow", "LSFG"))},
+    {Settings::FrameGenType::None, QStringLiteral(QT_TRANSLATE_NOOP("MainWindow", "None"))},
     {Settings::FrameGenType::Fsr3, QStringLiteral(QT_TRANSLATE_NOOP("MainWindow", "Optical Flow"))},
 };
 

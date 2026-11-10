@@ -13,7 +13,7 @@
 #include "common/dynamic_library.h"
 #include "video_core/host1x/gpu_device_memory_manager.h"
 #include "video_core/renderer_base.h"
-#ifdef HAS_LSFG
+#ifdef HAS_FRAME_GEN
 #include "video_core/renderer_vulkan/present/frame_gen.h"
 #endif
 #include "video_core/renderer_vulkan/vk_blit_screen.h"
@@ -104,7 +104,7 @@ private:
     BlitScreen blit_capture;
     BlitScreen blit_applet;
     RasterizerVulkan rasterizer;
-#ifdef HAS_LSFG
+#ifdef HAS_FRAME_GEN
     FrameGen frame_gen;
 #endif
     std::optional<TurboMode> turbo_mode;
