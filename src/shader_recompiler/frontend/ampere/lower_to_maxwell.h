@@ -30,6 +30,12 @@ struct Instruction {
 };
 static_assert(sizeof(Instruction) == 16);
 
+enum class TessellationStage {
+    None,
+    Control,
+    Evaluation,
+};
+
 struct LoweredProgram {
     std::vector<u64> instructions;
     std::vector<u32> source_instruction_offsets;
@@ -46,6 +52,7 @@ struct LoweredProgram {
 
 struct LoweringOptions {
     bool geometry{};
+    TessellationStage tessellation_stage{TessellationStage::None};
     /// Lower matrix multiplies (HMMA) too; see LowerToMaxwellWith.
     bool tensor{};
     /// With `tensor`: lower each HMMA to one call of a shared software helper instead of the
@@ -202,6 +209,7 @@ inline LoweredProgram LowerToMaxwellWith(std::span<const Instruction> code, u32 
                                           LoweringOptions options = {}) {
     const bool geometry = options.geometry, tensor = options.tensor,
                compact_tensor = options.compact_tensor;
+    const TessellationStage tessellation_stage = options.tessellation_stage;
     LoweredProgram result;
     // UR28 and up (when used) live just below R216: UR28 at R(216 - high_uniforms).
     const u32 high_uniform_base = 216 - high_uniforms;
@@ -2682,7 +2690,15 @@ inline LoweredProgram LowerToMaxwellWith(std::span<const Instruction> code, u32 
         }
         case 0x321: // ALD
         case 0x322: { // AST
-            if (insn.Bits(76, 2) || insn.Bits(79, 1)) return fail(index, "native indexed/patch attribute access");
+            const bool patch = insn.Bits(76, 1) != 0;
+            const bool output = insn.Bits(79, 1) != 0;
+            if (insn.Bits(77, 1) || (patch && tessellation_stage == TessellationStage::None) ||
+                (output && (!patch || opcode != 0x321)) ||
+                (patch && opcode == 0x321 &&
+                 output != (tessellation_stage == TessellationStage::Control)) ||
+                (patch && opcode == 0x322 && tessellation_stage != TessellationStage::Control)) {
+                return fail(index, "native indexed/patch attribute access");
+            }
             const u32 address = insn.Bits(40, 10);
             const u32 components = insn.Bits(74, 2) + 1;
             if (address % 4 || address + components * 4 > 0x400 || insn.Bits(24, 8) != 255) {
@@ -2702,6 +2718,7 @@ inline LoweredProgram LowerToMaxwellWith(std::span<const Instruction> code, u32 
             const u32 vertex = opcode == 0x321 ? insn.Bits(32, 8) : insn.Bits(64, 8);
             const u64 translated = (opcode == 0x321 ? 0xefd8000000000000ULL : 0xeff0000000000000ULL) |
                 predicate | value_reg | (u64{255} << 8) | (u64{address} << 20) |
+                (u64{patch} << 31) | (u64{output} << 32) |
                 (u64{vertex} << 39) | (u64{components - 1} << 47);
             result.instructions.push_back(translated);
             break;
@@ -3600,11 +3617,13 @@ inline LoweredProgram LowerToMaxwellWith(std::span<const Instruction> code, u32 
             // Kept as an nx2 pseudo instruction (Maxwell 0xefc0, free there) that the frontend
             // reads for the task or mesh stage: data/dest 0-7, Ra 8-15, offset 20-43, .32 44,
             // .ATTR 45, .SKEW 46, .O 47, write 48. Addresses are linear bytes in the region.
-            if (geometry) {
+            if (geometry || tessellation_stage != TessellationStage::None) {
                 // A vertex's stage buffer entry, which only ALD reads: Ra passes through, as
                 // Maxwell's ISBERD does.
                 if (opcode != 0x923 || insn.Bits(75, 5) || insn.Bits(40, 24))
-                    return fail(index, "native geometry ISBERD mode");
+                    return fail(index, tessellation_stage != TessellationStage::None
+                                           ? "native tessellation ISBERD mode"
+                                           : "native geometry ISBERD mode");
                 if (dest != 255) {
                     emit(base(0x5c98000000000000ULL) | (u64{15} << 39) | (u64{insn.Bits(24, 8)} << 20));
                 }
