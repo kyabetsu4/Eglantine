@@ -36,6 +36,7 @@ add_executable(tests
     core/internal_network/network.cpp
     video_core/frame_dump_schedule.cpp
     video_core/memory_tracker.cpp
+    video_core/report_time.cpp
     video_core/host_memory_limit.cpp
     video_core/shader_object_pool.cpp
     video_core/spirv_storage_alignment.cpp

@@ -39,6 +39,7 @@
 #include "video_core/host1x/host1x.h"
 #include "video_core/host1x/syncpoint_manager.h"
 #include "video_core/memory_manager.h"
+#include "video_core/nx2.h"
 #include "video_core/renderer_base.h"
 #include "video_core/shader_notify.h"
 
@@ -178,6 +179,12 @@ struct GPU::Impl {
     }
 
     [[nodiscard]] u64 GetTicks() const {
+        // Ampere reports use nanoseconds, matching nvdrv's current GPU time. Scaling the
+        // reports as Maxwell ticks makes the guest's CPU/GPU calibration drift each frame.
+        if (g_nx2_ampere.load(std::memory_order_relaxed)) {
+            return report_clock.Next(
+                static_cast<u64>(system.CoreTiming().GetGlobalTimeNs().count()));
+        }
         const u64 gpu_tick = system.CoreTiming().GetGPUTicks();
         return gpu_tick / GpuClockMultiplier(Settings::values.gpu_clock.GetValue());
     }
@@ -394,6 +401,7 @@ struct GPU::Impl {
 
     std::list<std::function<void()>> sync_requests;
     std::atomic<u64> current_sync_fence{};
+    mutable Nx2ReportClock report_clock;
     u64 last_sync_fence{};
 
     // Maps queued by MapInOrder and not run yet, by the GPU addresses they change.
