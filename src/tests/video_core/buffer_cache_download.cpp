@@ -83,7 +83,7 @@ struct FixtureParams {
     static constexpr bool IS_OPENGL = false, HAS_PERSISTENT_UNIFORM_BUFFER_BINDINGS = false,
                           HAS_FULL_INDEX_AND_PRIMITIVE_SUPPORT = false,
                           NEEDS_BIND_UNIFORM_INDEX = false, NEEDS_BIND_STORAGE_INDEX = false,
-                          USE_MEMORY_MAPS = true, SEPARATE_IMAGE_BUFFERS_BINDINGS = false,
+                          USE_MEMORY_MAPS = true, SEPARATE_IMAGE_BUFFER_BINDINGS = false,
                           USE_MEMORY_MAPS_FOR_UPLOADS = true;
 };
 } // namespace
