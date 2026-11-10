@@ -37,6 +37,7 @@
 #include "video_core/memory_manager.h"
 #include "video_core/nx2_debug_control.h"
 #include "video_core/nx2_diag.h"
+#include "video_core/mkw_wave_workaround.h"
 #include "video_core/shader_environment.h"
 #include "video_core/texture_cache/format_lookup_table.h"
 #include "video_core/textures/texture.h"
@@ -230,9 +231,25 @@ static void CollectStoragePointerSlots(const ::Common::unordered_map<u64, u8>& t
     }
 }
 
+static std::vector<u64> CollectMappedStoragePointerKeys(
+    const ::Common::unordered_map<u64, u8>& storage_pointer_types) {
+    std::vector<u64> keys;
+    for (const auto& [key, type] : storage_pointer_types) {
+        if (type != 0) {
+            keys.push_back(key);
+        }
+    }
+    std::ranges::sort(keys);
+    return keys;
+}
+
 void GenericEnvironment::StoragePointerSlots(std::vector<u64>& pointers,
                                              std::vector<u64>& null_slots) const {
     CollectStoragePointerSlots(storage_pointer_types, cbuf_values, pointers, null_slots);
+}
+
+std::vector<u64> GenericEnvironment::MappedStoragePointerKeys() const {
+    return CollectMappedStoragePointerKeys(storage_pointer_types);
 }
 
 void GenericEnvironment::SeedStoragePointers(std::span<const u64> slots) {
@@ -241,9 +258,19 @@ void GenericEnvironment::SeedStoragePointers(std::span<const u64> slots) {
     }
 }
 
+void GenericEnvironment::KeepStoragePointers(std::span<const u64> keys) {
+    for (const u64 key : keys) {
+        storage_pointer_types.insert_or_assign(key, u8{1});
+    }
+}
+
 void FileEnvironment::StoragePointerSlots(std::vector<u64>& pointers,
                                           std::vector<u64>& null_slots) const {
     CollectStoragePointerSlots(storage_pointer_types, cbuf_values, pointers, null_slots);
+}
+
+std::vector<u64> FileEnvironment::MappedStoragePointerKeys() const {
+    return CollectMappedStoragePointerKeys(storage_pointer_types);
 }
 
 bool GenericEnvironment::IsCbufIndirectStorageBufferPointer(u32 index, u32 offset, u32 indirect) {
@@ -537,8 +564,14 @@ std::shared_ptr<const LoweredNativeCode> GenericEnvironment::LowerNativeCode(u32
         }
         if (status == Shader::Ampere::ProgramCaptureState::Result::Complete) break;
     }
+    const auto tessellation_stage = stage == Shader::Stage::TessellationControl
+                                        ? Shader::Ampere::TessellationStage::Control
+                                    : stage == Shader::Stage::TessellationEval
+                                        ? Shader::Ampere::TessellationStage::Evaluation
+                                        : Shader::Ampere::TessellationStage::None;
     auto lowered = Shader::Ampere::LowerToMaxwell(
         native, {.geometry = geometry,
+                 .tessellation_stage = tessellation_stage,
                  .tensor = native_tensor,
                  .compact_tensor = native_compact_tensor,
                  .native_code_address = program_base + native_header_size});
@@ -630,6 +663,7 @@ std::shared_ptr<const LoweredNativeCode> GenericEnvironment::LowerNativeCode(u32
             program_base, lowered.error_offset, lowered.error, words[0] & 0xfff, words[0],
             words[1], words[2], words[3]);
     }
+    VideoCommon::ApplyMkwZeroDepthFallback(native, lowered);
     auto result = std::make_shared<LoweredNativeCode>();
     result->native_program_key = Shader::Ampere::NativeProgramKey(native);
     static const bool hash_for_indirect_reset = [] {
@@ -716,22 +750,14 @@ GraphicsEnvironment::GraphicsEnvironment(Tegra::Engines::Maxwell3D& maxwell3d_,
     const bool mesh_slot{native && regs.IsMeshEnabled() &&
                          (program == Maxwell::ShaderType::VertexB ||
                           program == Maxwell::ShaderType::Tessellation)};
-    if (native) {
-        if (program != Maxwell::ShaderType::VertexB && program != Maxwell::ShaderType::Pixel &&
-            !mesh_slot && !geometry) {
-            throw Shader::RuntimeError("Unsupported native graphics shader stage {}", static_cast<u32>(program));
-        }
-        if (std::getenv("EDEN_NATIVE_DRAW_DIAGNOSTICS")) {
-            const u32 native_stage = program == Maxwell::ShaderType::Pixel ? 4 : 0;
-            const auto& table = maxwell3d->state.shader_stages[native_stage].const_buffers[1];
-            if (table.enabled && table.size && table.size <= Tegra::Engines::Maxwell3D::Regs::MaxConstBufferSize) {
-                std::vector<u8> bytes(table.size);
-                gpu_memory->ReadBlock(table.address, bytes.data(), bytes.size());
-                std::ofstream dump(fmt::format("native-graphics-cbuf-{}-1.bin", static_cast<u32>(program)), std::ios::binary);
-                dump.write(reinterpret_cast<const char*>(bytes.data()), bytes.size());
-            }
-        }
-        InitializeNativeCode(std::move(lowered_native_), 128, geometry);
+    const bool tessellation =
+        native && !mesh_slot &&
+        (program == Maxwell::ShaderType::TessellationInit ||
+         program == Maxwell::ShaderType::Tessellation) &&
+        sph.common0.shader_type == static_cast<u32>(program);
+    if (native && program != Maxwell::ShaderType::VertexB &&
+        program != Maxwell::ShaderType::Pixel && !mesh_slot && !geometry && !tessellation) {
+        throw Shader::RuntimeError("Unsupported native graphics shader stage {}", static_cast<u32>(program));
     }
     gp_passthrough_mask = maxwell3d->regs.post_vtg_shader_attrib_skip_mask;
     switch (program) {
@@ -776,6 +802,22 @@ GraphicsEnvironment::GraphicsEnvironment(Tegra::Engines::Maxwell3D& maxwell3d_,
                                    geometry_pipeline.reserved[1]};
             gpu_memory->ReadBlock(address, &mesh_primitive_header, sizeof(mesh_primitive_header));
         }
+    }
+    if (native) {
+        if (std::getenv("EDEN_NATIVE_DRAW_DIAGNOSTICS")) {
+            const u32 native_stage = program == Maxwell::ShaderType::Pixel ? 4 :
+                                     program == Maxwell::ShaderType::Geometry ? 3 :
+                                     program == Maxwell::ShaderType::Tessellation ? 2 :
+                                     program == Maxwell::ShaderType::TessellationInit ? 1 : 0;
+            const auto& table = maxwell3d->state.shader_stages[native_stage].const_buffers[1];
+            if (table.enabled && table.size && table.size <= Tegra::Engines::Maxwell3D::Regs::MaxConstBufferSize) {
+                std::vector<u8> bytes(table.size);
+                gpu_memory->ReadBlock(table.address, bytes.data(), bytes.size());
+                std::ofstream dump(fmt::format("native-graphics-cbuf-{}-1.bin", static_cast<u32>(program)), std::ios::binary);
+                dump.write(reinterpret_cast<const char*>(bytes.data()), bytes.size());
+            }
+        }
+        InitializeNativeCode(std::move(lowered_native_), 128, geometry);
     }
     const u64 local_size{sph.LocalMemorySize()};
     ASSERT(local_size <= (std::numeric_limits<u32>::max)());
@@ -1129,7 +1171,7 @@ void LoadPipelines(
     std::stop_token stop_loading, const std::filesystem::path& filename, u32 expected_cache_version,
     Common::UniqueFunction<void, std::ifstream&, FileEnvironment> load_compute,
     Common::UniqueFunction<void, std::ifstream&, std::vector<FileEnvironment>> load_graphics,
-    bool with_mesh_state) try {
+    bool with_mesh_state, u32 min_compatible_version, CacheUpgrade* upgrade) try {
     std::ifstream file(filename, std::ios::binary | std::ios::ate);
     if (!file.is_open()) {
         return;
@@ -1142,7 +1184,13 @@ void LoadPipelines(
     u32 cache_version;
     file.read(magic_number.data(), magic_number.size())
         .read(reinterpret_cast<char*>(&cache_version), sizeof(cache_version));
-    if (magic_number != MAGIC_NUMBER || cache_version != expected_cache_version) {
+    const bool upgrading = upgrade != nullptr && magic_number == MAGIC_NUMBER &&
+                           cache_version >= min_compatible_version &&
+                           cache_version < expected_cache_version;
+    if (upgrading) {
+        upgrade->from_version = cache_version;
+    }
+    if (!upgrading && (magic_number != MAGIC_NUMBER || cache_version != expected_cache_version)) {
         file.close();
         if (Common::FS::RemoveFile(filename)) {
             if (magic_number != MAGIC_NUMBER) {
@@ -1162,24 +1210,69 @@ void LoadPipelines(
         if (stop_loading.stop_requested()) {
             return;
         }
+        const auto record_begin{file.tellg()};
         u32 num_envs{};
         file.read(reinterpret_cast<char*>(&num_envs), sizeof(num_envs));
         std::vector<FileEnvironment> envs(num_envs);
         for (FileEnvironment& env : envs) {
             env.Deserialize(file, with_mesh_state);
         }
-        if (envs.front().ShaderStage() == Shader::Stage::Compute) {
+        const bool is_compute{envs.front().ShaderStage() == Shader::Stage::Compute};
+        if (is_compute) {
             load_compute(file, std::move(envs.front()));
         } else {
             load_graphics(file, std::move(envs));
+        }
+        if (upgrading) {
+            const auto record_end{file.tellg()};
+            std::string& record =
+                upgrade->records.emplace_back(static_cast<size_t>(record_end - record_begin), '\0');
+            file.seekg(record_begin);
+            file.read(record.data(), static_cast<std::streamsize>(record.size()));
+            upgrade->is_compute.push_back(is_compute);
         }
     }
 
 } catch (const std::ios_base::failure& e) {
     LOG_ERROR(Common_Filesystem, "{}", e.what());
+    if (upgrade != nullptr && upgrade->from_version != 0) {
+        // The records read so far are written again under the current version.
+        return;
+    }
     if (!Common::FS::RemoveFile(filename)) {
         LOG_ERROR(Common_Filesystem, "Failed to delete pipeline cache file {}",
                   Common::FS::PathToUTF8String(filename));
+    }
+}
+
+void RewritePipelines(const std::filesystem::path& filename, u32 cache_version, u32 old_version,
+                      std::span<const std::string* const> records) try {
+    auto temporary{filename};
+    temporary += ".tmp";
+    {
+        std::ofstream file(temporary, std::ios::binary | std::ios::trunc);
+        file.exceptions(std::ofstream::failbit);
+        file.write(MAGIC_NUMBER.data(), MAGIC_NUMBER.size())
+            .write(reinterpret_cast<const char*>(&cache_version), sizeof(cache_version));
+        for (const std::string* const record : records) {
+            file.write(record->data(), static_cast<std::streamsize>(record->size()));
+        }
+    }
+    auto backup{filename};
+    backup += fmt::format(".v{}.bak", old_version);
+    std::filesystem::rename(filename, backup);
+    std::filesystem::rename(temporary, filename);
+    std::error_code error;
+    std::filesystem::remove(backup, error);
+} catch (const std::exception& e) {
+    LOG_ERROR(Common_Filesystem, "Failed to write pipeline cache file {} again: {}",
+              Common::FS::PathToUTF8String(filename), e.what());
+    // Keep the old file when the new one couldn't take its place.
+    auto backup{filename};
+    backup += fmt::format(".v{}.bak", old_version);
+    std::error_code error;
+    if (!std::filesystem::exists(filename, error) && std::filesystem::exists(backup, error)) {
+        std::filesystem::rename(backup, filename, error);
     }
 }
 

@@ -55,7 +55,7 @@ constexpr VkExtent2D CaptureImageSize{
     .height = VideoCore::Capture::LinearHeight,
 };
 
-#ifdef HAS_LSFG
+#ifdef HAS_FRAME_GEN
 [[nodiscard]] VkExtent2D GuestExtent(std::span<const Tegra::FramebufferConfig> framebuffers) {
     if (framebuffers.empty()) {
         return VkExtent2D{};
@@ -182,7 +182,7 @@ try
                   scheduler,
                   PresentFiltersForAppletCapture)
     , rasterizer(render_window, gpu, device_memory, device, memory_allocator, state_tracker, scheduler)
-#ifdef HAS_LSFG
+#ifdef HAS_FRAME_GEN
     , frame_gen(memory_allocator, scheduler)
 #endif
 {
@@ -227,7 +227,7 @@ void RendererVulkan::Composite(std::span<const Tegra::FramebufferConfig> framebu
                                present_manager.SwapchainImageCount(),
                                swapchain.GetImageViewFormat());
 
-#ifdef HAS_LSFG
+#ifdef HAS_FRAME_GEN
     void(frame_gen.WantedGenerations(present_manager.MaxExtraFrames()));
 
     frame_gen.Process(device, frame, present_manager.SwapchainImageFormat(),
@@ -246,7 +246,7 @@ void RendererVulkan::Composite(std::span<const Tegra::FramebufferConfig> framebu
     scheduler.Flush(*frame->render_ready);
 
     present_manager.Present(frame);
-#ifdef HAS_LSFG
+#ifdef HAS_FRAME_GEN
     scheduler.DispatchWork();
 #endif
 

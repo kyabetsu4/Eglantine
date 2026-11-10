@@ -12,6 +12,7 @@
 #include "common/assert.h"
 #include "common/logging.h"
 #include "core/core.h"
+#include "core/core_timing.h"
 #include "core/hle/kernel/k_process.h"
 #include "core/hle/service/nvdrv/core/container.h"
 #include "core/hle/service/nvdrv/core/nvmap.h"
@@ -502,6 +503,7 @@ NvResult nvhost_gpu::SubmitGPFIFOImpl(IoctlSubmitGpfifo& params, Tegra::CommandL
     u32 increment{(flags.fence_increment.Value() != 0 ? 2 : 0) +
                   (flags.increment_value.Value() != 0 ? params.fence.value : 0)};
     params.fence.value = syncpoint_manager.IncrementSyncpointMaxExt(channel_syncpoint, increment);
+    entries.submit_ns = static_cast<u64>(system.CoreTiming().GetGlobalTimeNs().count());
     gpu.PushGPUEntries(bind_id, std::move(entries));
 
     if (g_nx2_driver && !flags.fence_increment.Value() && increment > 0) {

@@ -81,12 +81,19 @@ struct UnswizzleRowRun {
     u32 run_alignment;
 };
 
+/// Switch 2 block-linear surfaces swap GOB offset bits 5 and 6, unless their texture header asks
+/// for the Maxwell GOB layout (ImageInfo::maxwell_gobs).
+[[nodiscard]] constexpr bool UsesNativeGobs(bool native_memory, const ImageInfo& info) {
+    return native_memory && !info.maxwell_gobs;
+}
+
 struct UnswizzlePlan {
     boost::container::small_vector<BufferImageCopy, 16> copies;
     boost::container::small_vector<UnswizzleRowRun, 16> runs;
     size_t total_host_bytes{0};
     u32 bpp_log2{0};
     bool layout_valid{true};
+    bool maxwell_gobs{false};
 };
 
 /// Plans the unswizzle copies and runs for a 2D block-linear image overlapping `dirty_ranges`.
@@ -134,6 +141,17 @@ void ConvertImage(std::span<const u8> input, const ImageInfo& info, std::span<u8
 [[nodiscard]] Extent3D MipSize(Extent3D size, u32 level);
 
 [[nodiscard]] Extent3D MipBlockSize(const ImageInfo& info, u32 level);
+
+/// Sets `written[level * layers + layer]` for each level and layer of `dst` that `copies` from
+/// `src` write whole, unscaled and from the origin. Sets none when the images differ in 2D format,
+/// the format is compressed, or either image is rescaled or lacks part of its host memory (sparse,
+/// unbacked, trimmed levels).
+void MarkSubresourcesWrittenWhole(const ImageBase& dst, const ImageBase& src,
+                                  std::span<const ImageCopy> copies, std::span<u8> written);
+
+/// Whether `copies` from `src` write every texel of `dst` (MarkSubresourcesWrittenWhole).
+[[nodiscard]] bool CopiesWriteWholeImage(const ImageBase& dst, const ImageBase& src,
+                                         std::span<const ImageCopy> copies);
 
 [[nodiscard]] boost::container::small_vector<SwizzleParameters, 16> FullUploadSwizzles(
     const ImageInfo& info);
