@@ -54,6 +54,7 @@ add_executable(tests
     video_core/vertex_repack.cpp
     video_core/query_copy.cpp
     video_core/ampere_lowering.cpp
+    video_core/framebuffer_clear_layers.cpp
     video_core/ampere_tennis_tessellation.cpp
     video_core/spirv_software_matrix.cpp
     video_core/ampere_geometry.cpp
