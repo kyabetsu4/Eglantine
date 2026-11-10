@@ -746,7 +746,8 @@ std::optional<bool> NupContainer::HasZstdMagic(std::size_t file_index) const {
     if (compressed.size() != compressed_size || !dctx) {
         return std::nullopt;
     }
-    ZSTD_DCtx_setParameter(dctx.get(), ZSTD_d_windowLogMax, ZSTD_WINDOWLOG_MAX);
+    ZSTD_DCtx_setParameter(dctx.get(), ZSTD_d_windowLogMax,
+                           ZSTD_dParam_getBounds(ZSTD_d_windowLogMax).upperBound);
     ZSTD_inBuffer input{compressed.data(), compressed.size(), 0};
     ZSTD_outBuffer output{head.data(), head.size(), 0};
     while (output.pos < output.size && input.pos < input.size) {
