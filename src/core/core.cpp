@@ -48,6 +48,8 @@
 #include "core/hle/service/am/frontend/applets.h"
 #include "core/hle/service/am/process_creation.h"
 #include "core/hle/service/apm/apm_controller.h"
+#include "core/hle/service/psc/time/service_manager.h"
+#include "core/hle/service/sm/sm.h"
 #include "core/hle/service/filesystem/filesystem.h"
 #include "core/hle/service/glue/glue_manager.h"
 #include "core/hle/service/glue/time/static.h"
@@ -1126,4 +1128,28 @@ void System::ApplySettings() {
     }
 }
 
+
+bool System::PulseMorningReset() {
+    auto time_m = ServiceManager().GetService<Service::PSC::Time::ServiceManager>("time:m");
+    if (!time_m) {
+        return false;
+    }
+    return time_m->PulseMorningReset() == ResultSuccess;
+}
+
+bool System::RestoreRealTime() {
+    auto time_m = ServiceManager().GetService<Service::PSC::Time::ServiceManager>("time:m");
+    if (!time_m) {
+        return false;
+    }
+    return time_m->RestoreRealTime() == ResultSuccess;
+}
+
+bool System::IsTimePulsing() const {
+    auto time_m = ServiceManager().GetService<Service::PSC::Time::ServiceManager>("time:m");
+    if (!time_m) {
+        return false;
+    }
+    return time_m->IsPulsing();
+}
 } // namespace Core

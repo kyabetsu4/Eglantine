@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  @page {
+    size: letter portrait;
+    margin: 0.8in;
+  }
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+  body {
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: #1a1a1a;
+    background: #ffffff;
+    line-height: 1.5;
+    font-size: 11pt;
+  }
+  .header {
+    border-bottom: 2px solid #222;
+    padding-bottom: 12px;
+    margin-bottom: 20px;
+  }
+  h1 {
+    font-size: 22pt;
+    font-weight: 800;
+    color: #111;
+    margin-bottom: 4px;
+  }
+  .subtitle {
+    font-size: 11pt;
+    color: #666;
+  }
+  .steps {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  .step {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 10px 14px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+  }
+  .num {
+    background: #222;
+    color: #fff;
+    font-weight: 700;
+    font-size: 11pt;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .text {
+    flex: 1;
+  }
+  .title {
+    font-weight: 700;
+    font-size: 11pt;
+    color: #111;
+    margin-bottom: 2px;
+  }
+  .desc {
+    font-size: 10pt;
+    color: #444;
+  }
+  code {
+    background: #eee;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: Consolas, monospace;
+    font-size: 9.5pt;
+    color: #000;
+  }
+  .note-box {
+    background: #f7f7f7;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    padding: 12px 16px;
+    font-size: 10pt;
+    color: #333;
+  }
+  .note-title {
+    font-weight: 700;
+    margin-bottom: 4px;
+    color: #111;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Pok&eacute;mon Pokopia &mdash; Steam Deck Setup</h1>
+  <div class="subtitle">Quick step-by-step installation instructions</div>
+</div>
+
+<div class="steps">
+
+  <div class="step">
+    <div class="num">1</div>
+    <div class="text">
+      <div class="title">Go to Desktop Mode</div>
+      <div class="desc">Press the <strong>STEAM</strong> button &rarr; <strong>Power</strong> &rarr; <strong>Switch to Desktop</strong>.</div>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="num">2</div>
+    <div class="text">
+      <div class="title">Extract the ROM</div>
+      <div class="desc">Put <code>pokopia.rar</code> in your <code>Downloads</code> folder and extract it.</div>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="num">3</div>
+    <div class="text">
+      <div class="title">Rename the folder</div>
+      <div class="desc">Rename the extracted folder <code>PPP ROM</code> to exactly: <code>Pokopia</code></div>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="num">4</div>
+    <div class="text">
+      <div class="title">Copy the base folder</div>
+      <div class="desc">Copy the <code>base</code> folder from Downloads, go inside <code>Pokopia</code>, and paste it there. If asked to replace, choose <strong>Yes</strong>.</div>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="num">5</div>
+    <div class="text">
+      <div class="title">Copy the exefs folder</div>
+      <div class="desc">Go back to Downloads, copy the <code>exefs</code> folder, navigate to <code>Pokopia/updates/655360</code>, and paste it there. If asked to replace, choose <strong>Yes</strong>.</div>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="num">6</div>
+    <div class="text">
+      <div class="title">Make the installer executable</div>
+      <div class="desc">Right-click <code>pokopia-deck-setup.sh</code> &rarr; <strong>Properties</strong> &rarr; <strong>Permissions</strong> &rarr; check <strong>Is executable</strong>.</div>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="num">7</div>
+    <div class="text">
+      <div class="title">Run the installer</div>
+      <div class="desc">Double-click <code>pokopia-deck-setup.sh</code> and choose <strong>Run in Terminal</strong>. Let it finish.</div>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="num">8</div>
+    <div class="text">
+      <div class="title">Play in Gaming Mode</div>
+      <div class="desc">Double-click <strong>Return to Gaming Mode</strong> on the desktop. Open your Steam Library &rarr; <strong>Non-Steam</strong> &rarr; launch <strong>Pokopia</strong>.</div>
+    </div>
+  </div>
+
+</div>
+
+<div class="note-box">
+  <div class="note-title">Note:</div>
+  On the very first launch, a window will pop up asking for your character name. Type your name, click OK, and the game will start. It remembers your name and will not ask again.
+</div>
+
+</body>
+</html>

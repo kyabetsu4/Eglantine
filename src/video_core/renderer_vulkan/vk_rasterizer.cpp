@@ -295,6 +295,8 @@ RasterizerVulkan::RasterizerVulkan(Core::Frontend::EmuWindow& emu_window_, Tegra
 
 RasterizerVulkan::~RasterizerVulkan() {
     VideoCommon::GpuSplit::Get().SetIdleHook(nullptr, nullptr);
+    // The channels are gone by now, and submitting invalidates the state tracker's flags.
+    state_tracker.ClearChannel();
     scheduler.WaitWorker();
     scheduler.Finish();
     delete std::exchange(g_diag_pool, nullptr);
@@ -1529,15 +1531,20 @@ void RasterizerVulkan::InnerInvalidation(std::span<const std::pair<DAddr, std::s
 
 bool RasterizerVulkan::OnCPUWrite(DAddr addr, u64 size) {
     DEBUG_ASSERT(addr != 0 || size != 0);
+    bool held;
     {
         std::scoped_lock lock{buffer_cache.mutex};
-        if (buffer_cache.OnCPUWrite(addr, size)) {
-            return true;
-        }
+        held = buffer_cache.OnCPUWrite(addr, size);
     }
     {
+        // Also for a held write: the images over it must not download their older bytes over
+        // it before it is applied (Yoshi and the Mysterious Book's shader code, written where an
+        // image was).
         std::scoped_lock lock{texture_cache.mutex};
         texture_cache.WriteMemory(addr, size);
+    }
+    if (held) {
+        return true;
     }
     pipeline_cache.InvalidateRegion(addr, size);
     return false;
@@ -2973,9 +2980,13 @@ void RasterizerVulkan::BindChannel(Tegra::Control::ChannelState& channel) {
     query_cache.BindToChannel(channel_id);
     state_tracker.ChangeChannel(channel);
     state_tracker.InvalidateState();
+    bound_channel_id = channel_id;
 }
 
 void RasterizerVulkan::ReleaseChannel(s32 channel_id) {
+    if (channel_id == bound_channel_id) {
+        state_tracker.ClearChannel();
+    }
     EraseChannel(channel_id);
     {
         std::scoped_lock lock{buffer_cache.mutex, texture_cache.mutex};

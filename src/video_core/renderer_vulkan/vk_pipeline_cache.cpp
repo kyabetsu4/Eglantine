@@ -67,7 +67,7 @@ using VideoCommon::FileEnvironment;
 using VideoCommon::GenericEnvironment;
 using VideoCommon::GraphicsEnvironment;
 
-constexpr u32 CACHE_VERSION = 30;
+constexpr u32 CACHE_VERSION = 31;
 constexpr size_t VULKAN_CACHE_FLUSH_PIPELINES = 128;
 constexpr size_t VULKAN_CACHE_FLUSH_MIN_SECONDS = 30;
 constexpr std::array<char, 8> VULKAN_CACHE_MAGIC_NUMBER{'y', 'u', 'z', 'u', 'v', 'k', 'c', 'h'};
@@ -689,6 +689,9 @@ PipelineCache::~PipelineCache() {
     StopBackgroundPipelines();
     SaveUsedPipelines();
     if (use_vulkan_pipeline_cache && !vulkan_pipeline_cache_filename.empty()) {
+        if (!device.CanReadPipelineCacheDuringBuilds()) {
+            workers.WaitForRequests();
+        }
         SerializeVulkanPipelineCache(vulkan_pipeline_cache_filename, vulkan_pipeline_cache,
                                      CACHE_VERSION);
     }
@@ -1050,7 +1053,8 @@ void PipelineCache::LoadDiskResources(u64 title_id, std::stop_token stop_loading
 }
 
 void PipelineCache::QueueVulkanPipelineCacheFlush() {
-    if (!use_vulkan_pipeline_cache || vulkan_pipeline_cache_filename.empty()) {
+    if (!use_vulkan_pipeline_cache || vulkan_pipeline_cache_filename.empty() ||
+        !device.CanReadPipelineCacheDuringBuilds()) {
         return;
     }
     if (++pipelines_since_flush < VULKAN_CACHE_FLUSH_PIPELINES) {
@@ -1172,13 +1176,14 @@ void PipelineCache::TickFrame() {
 
 void PipelineCache::EvictUnusedPipelines() {
     // Building a pipeline again on MoltenVK means a Metal compile mid-game, far dearer than the
-    // 2-3 ms below, so none are evicted there.
+    // rebuild cost below, so none are evicted there.
     if (device.IsMoltenVK()) {
         return;
     }
     // Each built pipeline holds ~0.45 MB of driver memory and none was ever destroyed, so it grew
     // with every place a session went (title 1: 1,500 on its title screen alone). One unused for
-    // this long is destroyed; it takes 2-3 ms to build again from the driver's pipeline cache.
+    // this long is destroyed; rebuilding it later requires a full GPU-thread shader translation
+    // (~8.5 ms each) plus a driver pipeline cache hit.
     constexpr u64 EvictAfterFrames = 9000;
     // Switch 2 titles keep theirs: a rebuilt pipeline translates its shader on the GPU thread.
     if (frame_count <= EvictAfterFrames || Settings::CurrentProgramIsSwitch2()) {
