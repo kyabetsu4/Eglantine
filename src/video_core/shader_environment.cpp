@@ -230,9 +230,25 @@ static void CollectStoragePointerSlots(const ::Common::unordered_map<u64, u8>& t
     }
 }
 
+static std::vector<u64> CollectMappedStoragePointerKeys(
+    const ::Common::unordered_map<u64, u8>& storage_pointer_types) {
+    std::vector<u64> keys;
+    for (const auto& [key, type] : storage_pointer_types) {
+        if (type != 0) {
+            keys.push_back(key);
+        }
+    }
+    std::ranges::sort(keys);
+    return keys;
+}
+
 void GenericEnvironment::StoragePointerSlots(std::vector<u64>& pointers,
                                              std::vector<u64>& null_slots) const {
     CollectStoragePointerSlots(storage_pointer_types, cbuf_values, pointers, null_slots);
+}
+
+std::vector<u64> GenericEnvironment::MappedStoragePointerKeys() const {
+    return CollectMappedStoragePointerKeys(storage_pointer_types);
 }
 
 void GenericEnvironment::SeedStoragePointers(std::span<const u64> slots) {
@@ -241,9 +257,19 @@ void GenericEnvironment::SeedStoragePointers(std::span<const u64> slots) {
     }
 }
 
+void GenericEnvironment::KeepStoragePointers(std::span<const u64> keys) {
+    for (const u64 key : keys) {
+        storage_pointer_types.insert_or_assign(key, u8{1});
+    }
+}
+
 void FileEnvironment::StoragePointerSlots(std::vector<u64>& pointers,
                                           std::vector<u64>& null_slots) const {
     CollectStoragePointerSlots(storage_pointer_types, cbuf_values, pointers, null_slots);
+}
+
+std::vector<u64> FileEnvironment::MappedStoragePointerKeys() const {
+    return CollectMappedStoragePointerKeys(storage_pointer_types);
 }
 
 bool GenericEnvironment::IsCbufIndirectStorageBufferPointer(u32 index, u32 offset, u32 indirect) {

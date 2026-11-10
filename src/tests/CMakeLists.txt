@@ -66,6 +66,7 @@ add_executable(tests
     video_core/ampere_ldc.cpp
     video_core/ampere_vote.cpp
     video_core/shader_attributes.cpp
+    video_core/evicted_pointer_slots.cpp
     video_core/indirect_reset.cpp
     video_core/nx2_semaphore_mirror.cpp
     audio_core/adpcm_decode.cpp

@@ -105,8 +105,14 @@ public:
     /// pointers, and the ones it left out because they held null when the program was translated.
     void StoragePointerSlots(std::vector<u64>& pointers, std::vector<u64>& null_slots) const;
 
+    [[nodiscard]] std::vector<u64> MappedStoragePointerKeys() const override;
+
     /// Takes these slots as pointers without reading them: a rebuild keeps its earlier buffers.
     void SeedStoragePointers(std::span<const u64> slots);
+
+    /// Answers the classification of these keys (see MappedStoragePointerKeys) as storage buffer
+    /// pointers, whatever the slots hold now; called before the program is translated.
+    void KeepStoragePointers(std::span<const u64> keys);
 
     bool HasHLEMacroState() const override {
         return has_hle_engine_state;
@@ -230,6 +236,8 @@ public:
 
     /// See GenericEnvironment::StoragePointerSlots.
     void StoragePointerSlots(std::vector<u64>& pointers, std::vector<u64>& null_slots) const;
+
+    [[nodiscard]] std::vector<u64> MappedStoragePointerKeys() const override;
 
     [[nodiscard]] u64 ReadInstruction(u32 address) override;
 
