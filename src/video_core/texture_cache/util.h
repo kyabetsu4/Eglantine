@@ -81,12 +81,19 @@ struct UnswizzleRowRun {
     u32 run_alignment;
 };
 
+/// Switch 2 block-linear surfaces swap GOB offset bits 5 and 6, unless their texture header asks
+/// for the Maxwell GOB layout (ImageInfo::maxwell_gobs).
+[[nodiscard]] constexpr bool UsesNativeGobs(bool native_memory, const ImageInfo& info) {
+    return native_memory && !info.maxwell_gobs;
+}
+
 struct UnswizzlePlan {
     boost::container::small_vector<BufferImageCopy, 16> copies;
     boost::container::small_vector<UnswizzleRowRun, 16> runs;
     size_t total_host_bytes{0};
     u32 bpp_log2{0};
     bool layout_valid{true};
+    bool maxwell_gobs{false};
 };
 
 /// Plans the unswizzle copies and runs for a 2D block-linear image overlapping `dirty_ranges`.

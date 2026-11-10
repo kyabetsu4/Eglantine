@@ -71,6 +71,7 @@ add_executable(tests
     video_core/evicted_pointer_slots.cpp
     video_core/indirect_reset.cpp
     video_core/nx2_semaphore_mirror.cpp
+    video_core/nx2_texture_gobs.cpp
     audio_core/adpcm_decode.cpp
     input_common/calibration_configuration_job.cpp
 )
