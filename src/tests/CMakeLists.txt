@@ -31,6 +31,7 @@ add_executable(tests
     core/internal_network/socket_proxy.cpp
     core/nup_writer.cpp
     core/nx2_debug_server.cpp
+    core/nx2_movie_pacing.cpp
     core/nx2_video_input_queue.cpp
     core/nx2_video_ready.cpp
     core/priority_queue.cpp
