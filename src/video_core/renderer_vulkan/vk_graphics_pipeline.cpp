@@ -13,6 +13,7 @@
 #include <boost/container/static_vector.hpp>
 #include <fmt/format.h>
 
+#include "video_core/renderer_vulkan/pipeline_build_failure.h"
 #include "video_core/renderer_vulkan/pipeline_helper.h"
 
 #include "common/bit_field.h"
@@ -337,6 +338,7 @@ GraphicsPipeline::GraphicsPipeline(
                          exception.what(), spv_modules[1] ? 1 : 0, spv_modules[2] ? 1 : 0,
                          spv_modules[3] ? 1 : 0, key.state.patch_control_points_minus_one.Value() + 1,
                          device.GetMaxTessellationPatchSize());
+            ReportPipelineBuildFailure(exception.GetResult());
             std::scoped_lock lock{build_mutex};
             is_built = true;
             build_condvar.notify_one();
