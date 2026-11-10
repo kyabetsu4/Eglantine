@@ -1050,6 +1050,7 @@ add_library(core STATIC
     hle/service/service.h
     hle/service/nx2_streamplay.h
     hle/service/nx2_stub_interface.h
+    hle/service/nx2_movie_clock.h
     hle/service/nx2_video_input_queue.h
     hle/service/nx2_video_ready.h
     hle/service/nx2_movie_pacing.h
