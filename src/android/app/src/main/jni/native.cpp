@@ -92,7 +92,6 @@ extern "C" {
 #include "hid_core/hid_types.h"
 #include "input_common/drivers/virtual_amiibo.h"
 #include "jni/native.h"
-#include "video_core/frame_gen/lossless_dll.h"
 #include "video_core/renderer_base.h"
 #include "video_core/renderer_vulkan/renderer_vulkan.h"
 #include "video_core/capture.h"
@@ -1508,36 +1507,21 @@ jint Java_org_yuzu_yuzu_1emu_NativeLibrary_installKeys(JNIEnv* env, jclass clazz
 }
 
 jstring Java_org_yuzu_yuzu_1emu_NativeLibrary_getLosslessDllPath(JNIEnv* env, jclass clazz) {
-#ifdef HAS_LSFG
-    const auto path = VideoCore::FrameGen::GetLosslessDllPath();
-    return Common::Android::ToJString(env, Common::FS::PathToUTF8String(path));
-#else
     return Common::Android::ToJString(env, "");
-#endif
 }
 
 jint Java_org_yuzu_yuzu_1emu_NativeLibrary_validateLosslessDll(JNIEnv* env, jclass clazz) {
-#ifdef HAS_LSFG
-    return static_cast<jint>(VideoCore::FrameGen::GetInstalledLosslessStatus());
-#else
-    return static_cast<jint>(VideoCore::FrameGen::LosslessStatus::NotInstalled);
-#endif
+    // LosslessStatus::NotInstalled
+    return 1;
 }
 
 jint Java_org_yuzu_yuzu_1emu_NativeLibrary_prepareLosslessDll(JNIEnv* env, jclass clazz) {
-#ifdef HAS_LSFG
-    return static_cast<jint>(VideoCore::FrameGen::BuildShaderCache());
-#else
-    return static_cast<jint>(VideoCore::FrameGen::LosslessStatus::NotInstalled);
-#endif
+    // LosslessStatus::NotInstalled
+    return 1;
 }
 
 jboolean Java_org_yuzu_yuzu_1emu_NativeLibrary_removeLosslessDll(JNIEnv* env, jclass clazz) {
-#ifdef HAS_LSFG
-    return static_cast<jboolean>(VideoCore::FrameGen::RemoveInstalledLosslessDll());
-#else
     return static_cast<jboolean>(false);
-#endif
 }
 
 jobjectArray Java_org_yuzu_yuzu_1emu_NativeLibrary_getPatchesForFile(JNIEnv* env, jobject jobj,

@@ -13,6 +13,7 @@
 #include <memory>
 #include <optional>
 #include <span>
+#include <string>
 #include <type_traits>
 #include "common/container/unordered_map.h"
 #include <vector>
@@ -104,8 +105,14 @@ public:
     /// pointers, and the ones it left out because they held null when the program was translated.
     void StoragePointerSlots(std::vector<u64>& pointers, std::vector<u64>& null_slots) const;
 
+    [[nodiscard]] std::vector<u64> MappedStoragePointerKeys() const override;
+
     /// Takes these slots as pointers without reading them: a rebuild keeps its earlier buffers.
     void SeedStoragePointers(std::span<const u64> slots);
+
+    /// Answers the classification of these keys (see MappedStoragePointerKeys) as storage buffer
+    /// pointers, whatever the slots hold now; called before the program is translated.
+    void KeepStoragePointers(std::span<const u64> keys);
 
     bool HasHLEMacroState() const override {
         return has_hle_engine_state;
@@ -230,6 +237,8 @@ public:
     /// See GenericEnvironment::StoragePointerSlots.
     void StoragePointerSlots(std::vector<u64>& pointers, std::vector<u64>& null_slots) const;
 
+    [[nodiscard]] std::vector<u64> MappedStoragePointerKeys() const override;
+
     [[nodiscard]] u64 ReadInstruction(u32 address) override;
 
     [[nodiscard]] u32 TranslateProgramAddress(u32 address) const override;
@@ -298,9 +307,26 @@ void SerializePipeline(const Key& key, const Envs& envs, const std::filesystem::
                       with_mesh_state);
 }
 
-void LoadPipelines(std::stop_token stop_loading, const std::filesystem::path& filename, u32 expected_cache_version,
+/// A cache file written by an older version whose records the current reader still parses: its
+/// records, raw, to write the file again under the current version once they are translated.
+struct CacheUpgrade {
+    u32 from_version{};
+    std::vector<std::string> records;
+    std::vector<bool> is_compute;
+};
+
+/// Loads the records of a pipeline cache file. A file from min_compatible_version up to the
+/// expected version is loaded too when `upgrade` is given (its records are kept there); older or
+/// broken files are deleted.
+void LoadPipelines(
+    std::stop_token stop_loading, const std::filesystem::path& filename, u32 expected_cache_version,
     Common::UniqueFunction<void, std::ifstream&, FileEnvironment> load_compute,
     Common::UniqueFunction<void, std::ifstream&, std::vector<FileEnvironment>> load_graphics,
-    bool with_mesh_state = false);
+    bool with_mesh_state = false, u32 min_compatible_version = 0, CacheUpgrade* upgrade = nullptr);
+
+/// Writes a cache file again from upgraded records under `cache_version`, through a temporary file
+/// (the old one is kept as <name>.v<old>.bak until the new one is in place).
+void RewritePipelines(const std::filesystem::path& filename, u32 cache_version, u32 old_version,
+                      std::span<const std::string* const> records);
 
 } // namespace VideoCommon

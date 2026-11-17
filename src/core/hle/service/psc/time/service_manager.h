@@ -60,6 +60,12 @@ public:
     Result CheckAndSignalAlarms();
     Result GetClosestAlarmInfo(Out<bool> out_is_valid, Out<AlarmInfo> out_info, Out<s64> out_time);
 
+    Result PulseMorningReset(s64 target_time = 0);
+    Result RestoreRealTime();
+    bool IsPulsing() const {
+        return m_is_pulsing;
+    }
+
 private:
     void CheckAndSetupServicesSAndP();
     void SetupSAndP();
@@ -82,6 +88,8 @@ private:
     OperationEvent m_local_operation;
     OperationEvent m_network_operation;
     OperationEvent m_ephemeral_operation;
+    bool m_is_pulsing{false};
+    s64 m_original_posix_time{0};
 };
 
 } // namespace Service::PSC::Time

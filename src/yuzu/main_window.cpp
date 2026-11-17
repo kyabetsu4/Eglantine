@@ -1302,6 +1302,7 @@ void MainWindow::InitializeHotkeys() {
     LinkActionShortcut(ui->action_Load_File, QStringLiteral("Load File"));
     LinkActionShortcut(ui->action_Exit, QStringLiteral("Exit Eglantine"));
     LinkActionShortcut(ui->action_Restart, QStringLiteral("Restart Emulation"));
+    LinkActionShortcut(ui->action_Fast_Complete_Build, QStringLiteral("Fast Complete Build"));
     LinkActionShortcut(ui->action_Pause, QStringLiteral("Continue/Pause Emulation"));
     LinkActionShortcut(ui->action_Stop, QStringLiteral("Stop Emulation"));
     LinkActionShortcut(ui->action_Show_Filter_Bar, QStringLiteral("Toggle Filter Bar"));
@@ -1341,6 +1342,10 @@ void MainWindow::InitializeHotkeys() {
         }
     });
     connect_shortcut(QStringLiteral("Change Adapting Filter"), &MainWindow::OnToggleAdaptingFilter);
+    connect_shortcut(QStringLiteral("Fast Complete Build"), &MainWindow::OnPulseMorningReset);
+    connect(ui->action_Fast_Complete_Build, &QAction::triggered, this, &MainWindow::OnPulseMorningReset);
+    auto* fast_build_sc = new QShortcut(QKeySequence(QStringLiteral("Ctrl+B")), this, nullptr, nullptr, Qt::ApplicationShortcut);
+    connect(fast_build_sc, &QShortcut::activated, this, &MainWindow::OnPulseMorningReset);
     connect_shortcut(QStringLiteral("Change Docked Mode"), &MainWindow::OnToggleDockedMode);
     connect_shortcut(QStringLiteral("Change GPU Mode"), &MainWindow::OnToggleGpuAccuracy);
     connect_shortcut(QStringLiteral("Audio Mute/Unmute"), &MainWindow::OnMute);
@@ -1652,7 +1657,7 @@ void MainWindow::UpdateMenuState() {
     const bool is_firmware_available = CheckFirmwarePresence();
 
     const std::array running_actions{
-        ui->action_Stop,        ui->action_Restart, ui->action_Configure_Current_Game,
+        ui->action_Stop,        ui->action_Restart, ui->action_Fast_Complete_Build, ui->action_Configure_Current_Game,
         ui->action_Load_Amiibo, ui->action_Pause,
     };
 
@@ -4587,6 +4592,9 @@ void MainWindow::OnApplicationChanged(u64 program_id) {
     UpdateWindowTitle(title_name, title_version,
                       QtCommon::system->GPU().Renderer().GetDeviceVendor());
 
+    if (discord_rpc)
+        discord_rpc->Update();
+
     // Switch to record playtime for the running program
     if (play_time_manager)
         play_time_manager->SetProgramId(program_id);
@@ -5358,3 +5366,45 @@ void VolumeButton::ResetMultiplier() {
 #define VMA_IMPLEMENTATION 1
 #include "video_core/vulkan_common/vma.h"
 #endif
+
+void MainWindow::OnPulseMorningReset() {
+    if (!emulation_running || !QtCommon::system) {
+        return;
+    }
+
+    if (QtCommon::system->IsTimePulsing()) {
+        QtCommon::system->RestoreRealTime();
+        LOG_INFO(Frontend, "Morning pulse cancelled; real-world time restored.");
+        if (statusBar()) {
+            statusBar()->showMessage(tr("[Fast Build] Real-world time restored."), 3000);
+        }
+        return;
+    }
+
+    if (!QtCommon::system->PulseMorningReset()) {
+        LOG_WARNING(Frontend, "Failed to pulse morning reset (time service not available).");
+        if (statusBar()) {
+            statusBar()->showMessage(tr("[Fast Build] Time service not ready yet."), 3000);
+        }
+        return;
+    }
+
+    LOG_INFO(Frontend, "Morning reset pulsed (05:00 AM). Emulating daily rollover...");
+    if (statusBar()) {
+        statusBar()->showMessage(tr("[Fast Build] 5:00 AM daily rollover pulsed! Restoring time in 4s..."), 4000);
+    }
+
+    // Schedule auto-restore after 4 seconds
+    QTimer::singleShot(4000, this, [this] {
+        if (!emulation_running || !QtCommon::system) {
+            return;
+        }
+        if (QtCommon::system->IsTimePulsing()) {
+            QtCommon::system->RestoreRealTime();
+            LOG_INFO(Frontend, "Real-world time restored automatically.");
+            if (statusBar()) {
+                statusBar()->showMessage(tr("[Fast Build] Real-world time restored. Upgrade is ready!"), 4000);
+            }
+        }
+    });
+}

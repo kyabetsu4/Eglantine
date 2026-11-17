@@ -44,7 +44,12 @@ enum class GPUVendor {
 };
 
 enum class TitleID : std::uint64_t {
-    NinjaGaidenRagebound = 0x0100781020710000ULL
+    NinjaGaidenRagebound = 0x0100781020710000ULL,
+    MarioTennisFever = 0x0400D4201C6EA000ULL,
+    HyruleWarriorsAgeOfImprisonment = 0x04003F40232DE000ULL,
+    DonkeyKongBananza = 0x040074A01BF12000ULL,
+    XenobladeChroniclesDENintendoSwitch2Edition = 0x0400FF500E34A001ULL,
+    SuperMarioBrosWonderNintendoSwitch2Edition = 0x040015100B514001ULL,
 };
 
 struct EnvironmentInfo {

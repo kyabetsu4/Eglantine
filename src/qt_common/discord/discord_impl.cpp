@@ -5,7 +5,11 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <chrono>
+#include <array>
+#include <cstdlib>
+#include <filesystem>
 #include <string>
+#include <string_view>
 
 #include <QEventLoop>
 #include <boost/algorithm/string/replace.hpp>
@@ -15,8 +19,11 @@
 #include <fmt/format.h>
 
 #include "common/common_types.h"
+#include "common/fs/fs_util.h"
 #include "common/string_util.h"
 #include "core/core.h"
+#include "core/file_sys/control_metadata.h"
+#include "core/file_sys/patch_manager.h"
 #include "core/loader/loader.h"
 
 #include "discord_impl.h"
@@ -27,11 +34,75 @@
 
 namespace DiscordRPC {
 
+namespace {
+
+struct TitleFallback {
+    u64 program_id;
+    std::string_view title;
+};
+
+constexpr std::array<TitleFallback, 3> KNOWN_TITLE_FALLBACKS{{
+    {0x0400A3A01EE4C000ULL, "Pokémon Pokopia"},
+    {0x0400486024DEC000ULL, "The Legend of Zelda: Ocarina of Time"},
+    {0x0400C3F00006E000ULL, "Mario Kart World"},
+}};
+
+std::string ResolveGameTitle(Core::System& system) {
+    std::string title;
+    system.GetAppLoader().ReadTitle(title);
+    if (!title.empty()) {
+        return title;
+    }
+
+    u64 program_id = system.GetApplicationProcessProgramID();
+    if (program_id == 0) {
+        system.GetAppLoader().ReadProgramId(program_id);
+    }
+
+    if (program_id != 0) {
+        if (const auto metadata =
+                FileSys::PatchManager::GetMetadataFromBaseOrUpdate(system, program_id);
+            metadata.first != nullptr) {
+            title = metadata.first->GetApplicationName();
+            if (!title.empty()) {
+                return title;
+            }
+        }
+
+        for (const auto& entry : KNOWN_TITLE_FALLBACKS) {
+            if (entry.program_id == program_id) {
+                return std::string{entry.title};
+            }
+        }
+    }
+
+    const std::string& app_path = system.GetCurrentApplicationFilePath();
+    if (!app_path.empty()) {
+        const std::filesystem::path fs_path{Common::FS::ToU8String(app_path)};
+        const std::string stem = Common::FS::PathToUTF8String(fs_path.stem());
+        if (!stem.empty() && stem != "main") {
+            return stem;
+        }
+    }
+
+    if (program_id != 0) {
+        return fmt::format("Title {:016X}", program_id);
+    }
+
+    return "Nintendo Switch Game";
+}
+
+} // namespace
+
 DiscordImpl::DiscordImpl(Core::System& system_) : system{system_} {
     DiscordEventHandlers handlers{};
     // The number is the client ID for Eden, it's used for images and the
     // application name
-    Discord_Initialize("1397286652128264252", &handlers, 1, nullptr);
+    const char* env_client_id = std::getenv("EDEN_DISCORD_CLIENT_ID");
+    const char* client_id =
+        (env_client_id != nullptr && env_client_id[0] != '\0') ? env_client_id
+                                                               : "1397286652128264252";
+    Discord_Initialize(client_id, &handlers, 1, nullptr);
 }
 
 DiscordImpl::~DiscordImpl() {
@@ -52,7 +123,9 @@ std::string DiscordImpl::GetGameString(const std::string& title) {
     boost::replace_all(icon_name, "é", "e");
 
     // Remove non-alphanumeric characters but keep dashes
-    std::erase_if(icon_name, [](char c) { return !std::isalnum(c) && c != '-'; });
+    std::erase_if(icon_name, [](char c) {
+        return !std::isalnum(static_cast<unsigned char>(c)) && c != '-';
+    });
 
     // Remove dashes from the start and end of the string
     icon_name.erase(icon_name.begin(), std::find_if(icon_name.begin(), icon_name.end(),
@@ -94,30 +167,35 @@ void DiscordImpl::UpdateGameStatus(std::string_view game_url, bool has_boxart) {
 
 void DiscordImpl::Update() {
     if (system.IsPoweredOn()) {
-        system.GetAppLoader().ReadTitle(game_title);
+        game_title = ResolveGameTitle(system);
 
         // Used to format Icon URL for yuzu website game compatibility page
         std::string icon_name = GetGameString(game_title);
-        auto const game_url = fmt::format(
-            "https://raw.githubusercontent.com/eden-emulator/boxart/refs/heads/master/img/{}.png",
-            icon_name);
+        const std::string boxart_path =
+            fmt::format("/eden-emulator/boxart/refs/heads/master/img/{}.png", icon_name);
+        const std::string game_url =
+            fmt::format("https://raw.githubusercontent.com{}", boxart_path);
 
-        httplib::SSLClient client(game_url);
-        client.set_connection_timeout(3);
-        client.set_read_timeout(3);
-        client.set_follow_location(true);
+        bool has_boxart = false;
+        if (!icon_name.empty()) {
+            httplib::SSLClient client("raw.githubusercontent.com");
+            client.set_connection_timeout(1);
+            client.set_read_timeout(1);
+            client.set_follow_location(true);
 
 #ifdef YUZU_BUNDLED_OPENSSL
-        client.load_ca_cert_store(kCert, sizeof(kCert));
+            client.load_ca_cert_store(kCert, sizeof(kCert));
 #endif
 
-        httplib::Request request{
-            .method = "HEAD",
-            .path = game_url,
-        };
+            httplib::Request request{
+                .method = "HEAD",
+                .path = boxart_path,
+            };
 
-        auto res = client.send(request);
-        UpdateGameStatus(game_url, res && res->status == 200);
+            auto res = client.send(request);
+            has_boxart = res && res->status == 200;
+        }
+        UpdateGameStatus(game_url, has_boxart);
 
         return;
     }

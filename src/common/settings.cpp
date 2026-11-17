@@ -395,20 +395,25 @@ void UpdateRescalingInfo() {
     TranslateResolutionInfo(setup, info);
 }
 
+bool FrameGenEnabled() {
+    return values.frame_gen.GetValue() &&
+           values.frame_gen_type.GetValue() == FrameGenType::Fsr3;
+}
+
 u32 FrameGenMultiplier() {
     return std::clamp(values.frame_gen_multiplier.GetValue(), MIN_FRAME_GEN_MULTIPLIER,
                       MAX_FRAME_GEN_MULTIPLIER);
 }
 
 size_t FrameGenGenerations() {
-    if (!values.frame_gen.GetValue()) {
+    if (!FrameGenEnabled()) {
         return 0;
     }
     return FrameGenMultiplier() - 1;
 }
 
 size_t FrameGenMaxGenerations() {
-    if (!values.frame_gen.GetValue()) {
+    if (!FrameGenEnabled()) {
         return 0;
     }
     if (values.frame_gen_target_rate.GetValue() != 0) {

@@ -363,6 +363,10 @@ public:
     [[nodiscard]] FileSys::ContentProviderUnion& GetContentProviderUnion();
     [[nodiscard]] const FileSys::ContentProviderUnion& GetContentProviderUnion() const;
 
+    bool PulseMorningReset();
+    bool RestoreRealTime();
+    [[nodiscard]] bool IsTimePulsing() const;
+
     [[nodiscard]] Service::FileSystem::FileSystemController& GetFileSystemController();
     [[nodiscard]] const Service::FileSystem::FileSystemController& GetFileSystemController() const;
 

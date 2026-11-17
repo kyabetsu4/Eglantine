@@ -8,6 +8,8 @@
 #include "core/core_timing.h"
 #include "core/hle/service/cmif_serialization.h"
 #include "core/hle/service/psc/time/power_state_service.h"
+#include <chrono>
+#include "common/settings.h"
 #include "core/hle/service/psc/time/service_manager.h"
 #include "core/hle/service/psc/time/static.h"
 
@@ -289,6 +291,67 @@ void ServiceManager::SetupSAndP() {
 Result ServiceManager::GetStaticService(OutInterface<StaticService> out_service,
                                         StaticServiceSetupInfo setup_info, const char* name) {
     *out_service = std::make_shared<StaticService>(system, setup_info, m_time, name);
+    R_SUCCEED();
+}
+
+Result ServiceManager::PulseMorningReset(s64 target_time) {
+    s64 current_posix_time = 0;
+    R_TRY(m_local_system_clock.GetCurrentTime(&current_posix_time));
+
+    if (!m_is_pulsing) {
+        m_original_posix_time = current_posix_time;
+        m_is_pulsing = true;
+    }
+
+    s64 target_posix_time = target_time;
+    if (target_posix_time == 0) {
+        CalendarTime cal{};
+        CalendarAdditionalInfo info{};
+        if (m_time_zone.ToCalendarTimeWithMyRule(cal, info, current_posix_time) == ResultSuccess) {
+            s64 seconds_today = static_cast<s64>(cal.hour) * 3600 +
+                                static_cast<s64>(cal.minute) * 60 +
+                                static_cast<s64>(cal.second);
+            s64 five_am = 5 * 3600 + 2;
+            s64 diff_seconds = 0;
+            if (seconds_today < 5 * 3600) {
+                diff_seconds = five_am - seconds_today;
+            } else {
+                diff_seconds = (86400 - seconds_today) + five_am;
+            }
+            target_posix_time = current_posix_time + diff_seconds;
+        } else {
+            target_posix_time = current_posix_time + 86400;
+        }
+    }
+
+    LOG_INFO(Service_Time, "PulseMorningReset: Shifting time from {} to {}", current_posix_time, target_posix_time);
+
+    R_TRY(m_local_system_clock.SetCurrentTime(target_posix_time));
+    R_TRY(m_network_system_clock.SetCurrentTime(target_posix_time));
+    m_alarms.CheckAndSignal(system.Kernel());
+
+    R_SUCCEED();
+}
+
+Result ServiceManager::RestoreRealTime() {
+    if (!m_is_pulsing) {
+        R_SUCCEED();
+    }
+    m_is_pulsing = false;
+
+    s64 real_epoch = std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::system_clock::now().time_since_epoch()).count();
+
+    if (Settings::values.custom_rtc_enabled) {
+        real_epoch += Settings::values.custom_rtc_offset.GetValue();
+    }
+
+    LOG_INFO(Service_Time, "RestoreRealTime: Restoring to real epoch {}", real_epoch);
+
+    R_TRY(m_local_system_clock.SetCurrentTime(real_epoch));
+    R_TRY(m_network_system_clock.SetCurrentTime(real_epoch));
+    m_alarms.CheckAndSignal(system.Kernel());
+
     R_SUCCEED();
 }
 

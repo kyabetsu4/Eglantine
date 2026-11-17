@@ -834,6 +834,8 @@ add_library(core STATIC
     hle/service/ns/ns.h
     hle/service/ns/ns_results.h
     hle/service/ns/ns_types.h
+    hle/service/ns/font_merge.cpp
+    hle/service/ns/font_merge.h
     hle/service/ns/platform_service_manager.cpp
     hle/service/ns/platform_service_manager.h
     hle/service/ns/query_service.cpp
@@ -1048,6 +1050,10 @@ add_library(core STATIC
     hle/service/service.h
     hle/service/nx2_streamplay.h
     hle/service/nx2_stub_interface.h
+    hle/service/nx2_movie_clock.h
+    hle/service/nx2_video_input_queue.h
+    hle/service/nx2_video_ready.h
+    hle/service/nx2_movie_pacing.h
     hle/service/nx2_gsv.h
     hle/service/services.cpp
     hle/service/services.h

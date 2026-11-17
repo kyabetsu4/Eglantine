@@ -24,12 +24,14 @@
 #include "common/common_types.h"
 #include "common/thread_worker.h"
 #include "shader_recompiler/frontend/ir/basic_block.h"
+#include "shader_recompiler/frontend/ir/program.h"
 #include "shader_recompiler/frontend/ir/value.h"
 #include "shader_recompiler/frontend/maxwell/control_flow.h"
 #include "shader_recompiler/host_translate_info.h"
 #include "shader_recompiler/object_pool.h"
 #include "shader_recompiler/profile.h"
 #include "video_core/engines/maxwell_3d.h"
+#include "video_core/evicted_pointer_slots.h"
 #include "video_core/host1x/gpu_device_memory_manager.h"
 #include "video_core/renderer_vulkan/fixed_pipeline_state.h"
 #include "video_core/renderer_vulkan/vk_buffer_cache.h"
@@ -96,6 +98,18 @@ class Scheduler;
 using VideoCommon::ShaderInfo;
 
 struct ShaderPools {
+    void ReleaseComputeContents(Shader::IR::Program& program, std::vector<u32>& code,
+                                bool build_in_parallel) {
+        if (build_in_parallel) {
+            return;
+        }
+        // Disk-cache workers do not need translation storage during the synchronous driver call.
+        program = {};
+        code = std::vector<u32>{};
+        block.Free();
+        inst.Free();
+    }
+
     void ReleaseContents() {
         flow_block.ReleaseContents();
         block.ReleaseContents();
@@ -127,7 +141,7 @@ public:
 
     void TickFrame();
 
-    [[nodiscard]] ComputePipeline* CurrentComputePipeline();
+    [[nodiscard]] ComputePipeline* CurrentComputePipeline(u64& native_key);
 
     void LoadDiskResources(u64 title_id, std::stop_token stop_loading,
                            const VideoCore::DiskResourceLoadCallback& callback);
@@ -137,7 +151,10 @@ private:
 
     [[nodiscard]] GraphicsPipeline* BuiltPipeline(GraphicsPipeline* pipeline) const noexcept;
 
-    std::unique_ptr<GraphicsPipeline> CreateGraphicsPipeline();
+    void WarnKeptPointer(size_t program, u64 slot) const;
+
+    std::unique_ptr<GraphicsPipeline> CreateGraphicsPipeline(
+        const VideoCommon::EvictedPointerSlots::Slots* keep_pointers = nullptr);
 
     std::unique_ptr<GraphicsPipeline> CreateGraphicsPipeline(
         ShaderPools& pools, const GraphicsPipelineCacheKey& key,
@@ -186,6 +203,7 @@ private:
     u64 frame_count{};
     std::deque<std::pair<u64, std::unique_ptr<GraphicsPipeline>>> evicted_pipelines; ///< (tick, pipeline)
     std::unordered_set<u64> used_and_evicted; ///< Key hashes of pipelines used this session, evicted since
+    VideoCommon::EvictedPointerSlots evicted_pointer_slots;
 
     ::Common::unordered_map<ComputePipelineCacheKey, std::unique_ptr<ComputePipeline>> compute_cache;
     /// Pipelines replaced by a rebuild; queued dispatches may still use them.

@@ -7,8 +7,6 @@
 
 #include "common/common_types.h"
 #include "video_core/renderer_vulkan/present/frame_gen_pacer.h"
-#include "video_core/renderer_vulkan/present/lsfg_chain.h"
-#include "video_core/renderer_vulkan/present/lsfg_shaders.h"
 #include "video_core/renderer_vulkan/present/fsr3_frame_gen.h"
 #include "video_core/vulkan_common/vulkan_memory_allocator.h"
 
@@ -33,13 +31,10 @@ public:
 
 private:
     void Rebuild(const Device& device, VkExtent2D extent, VkFormat format, f32 flow_scale);
-    void DumpDebugImages(u64 count);
 
     MemoryAllocator& memory_allocator;
     Scheduler& scheduler;
 
-    std::optional<LsfgShaders> shaders;
-    std::optional<LsfgChain> chain;
     std::optional<Fsr3FrameGen> fsr3_chain;
     FrameGenPacer pacer;
     FrameGenPlan plan{};
@@ -48,12 +43,9 @@ private:
     VkFormat built_format{VK_FORMAT_UNDEFINED};
     f32 built_flow_scale{};
     u64 frame_count{};
-    u64 last_count{};
     size_t last_generations{};
     u32 warm_streak{};
     bool generated{};
-    bool unavailable{};
-    bool dumped{};
 };
 
 } // namespace Vulkan

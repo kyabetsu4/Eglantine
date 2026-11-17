@@ -6,7 +6,9 @@
 
 add_executable(tests
     common/bit_field.cpp
+    common/bit_util.cpp
     common/cityhash.cpp
+    common/describe_exception.cpp
     common/container_hash.cpp
     common/event.cpp
     common/fibers.cpp
@@ -21,15 +23,28 @@ add_executable(tests
     common/undefined_fix.cpp
     common/unique_function.cpp
     common/zstd_compression.cpp
+    core/address_space.cpp
     core/core_timing.cpp
+    core/game_settings.cpp
+    core/file_sys_parsers.cpp
+    core/vfs_vector.cpp
     core/ldn.cpp
     core/internal_network/socket_proxy.cpp
     core/nup_writer.cpp
     core/nx2_debug_server.cpp
+    core/nx2_movie_pacing.cpp
+    core/nx2_movie_clock.cpp
+    core/nx2_video_input_queue.cpp
+    core/font_merge.cpp
+    core/nx2_video_ready.cpp
     core/priority_queue.cpp
     core/internal_network/network.cpp
     video_core/frame_dump_schedule.cpp
     video_core/memory_tracker.cpp
+    video_core/buffer_cache_download.cpp
+    video_core/report_time.cpp
+    video_core/host_memory_limit.cpp
+    video_core/shader_object_pool.cpp
     video_core/spirv_storage_alignment.cpp
     video_core/pipeline_optimization.cpp
     video_core/spirv_atomic_retry.cpp
@@ -37,7 +52,10 @@ add_executable(tests
     video_core/ampere_depth_compare.cpp
     video_core/h264_packet.cpp
     video_core/vertex_repack.cpp
+    video_core/query_copy.cpp
     video_core/ampere_lowering.cpp
+    video_core/framebuffer_clear_layers.cpp
+    video_core/ampere_tennis_tessellation.cpp
     video_core/spirv_software_matrix.cpp
     video_core/ampere_geometry.cpp
     video_core/ampere_i2f.cpp
@@ -45,6 +63,7 @@ add_executable(tests
     video_core/ampere_returns.cpp
     video_core/ampere_guarded_ulea.cpp
     video_core/ampere_compute_lowering.cpp
+    video_core/ampere_bindless_surfaces.cpp
     video_core/native_macro_fifo.cpp
     video_core/uniform_stream_reuse.cpp
     video_core/shader_invalidation.cpp
@@ -56,7 +75,12 @@ add_executable(tests
     video_core/ampere_ldc.cpp
     video_core/ampere_vote.cpp
     video_core/shader_attributes.cpp
+    video_core/evicted_pointer_slots.cpp
     video_core/indirect_reset.cpp
+    video_core/nx2_semaphore_mirror.cpp
+    video_core/join_whole_copy.cpp
+    video_core/nx2_texture_gobs.cpp
+    audio_core/adpcm_decode.cpp
     input_common/calibration_configuration_job.cpp
 )
 

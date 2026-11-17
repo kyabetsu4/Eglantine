@@ -6,7 +6,10 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <span>
+
 #include "shader_recompiler/frontend/ampere/lower_to_maxwell.h"
+#include "shader_recompiler/frontend/ampere/program_capture.h"
 
 namespace {
 using Shader::Ampere::Instruction;
@@ -98,4 +101,27 @@ TEST_CASE("Ampere output instructions stay rejected outside geometry programs",
     const auto lowered = LowerToMaxwell(geometry_program);
     REQUIRE(!static_cast<bool>(lowered));
     REQUIRE(lowered.error == "unsupported native opcode");
+}
+
+TEST_CASE("Ampere capture treats predicated CALL.REL.NOINC as a loop jump",
+          "[video_core][ampere]") {
+    const auto end = [](std::span<const Instruction> code) {
+        Shader::Ampere::ProgramCaptureState capture;
+        for (u32 index = 0; index < code.size(); ++index) {
+            if (capture.Observe(code[index], index) ==
+                Shader::Ampere::ProgramCaptureState::Result::Complete) {
+                return index + 1;
+            }
+        }
+        return 0U;
+    };
+    constexpr std::array<Instruction, 3> loop{{
+        {{0x00003944, 16, 0x03c00000, 0}},
+        {{0x00007947, 0xffffffe0, 0x0383ffff, 0}},
+        {{0x0000794d, 0, 0x03800000, 0}},
+    }};
+    REQUIRE(end(loop) == loop.size());
+    auto call = loop;
+    call[0].words[2] = 0x03800000;
+    REQUIRE(end(call) == 0);
 }

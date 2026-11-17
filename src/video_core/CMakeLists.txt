@@ -60,6 +60,7 @@ add_library(video_core STATIC
     engines/maxwell_dma.h
     engines/puller.cpp
     engines/puller.h
+    evicted_pointer_slots.h
     framebuffer_config.cpp
     framebuffer_config.h
     fsr.cpp
@@ -108,6 +109,7 @@ add_library(video_core STATIC
     invalidation_accumulator.h
     memory_manager.cpp
     memory_manager.h
+    mkw_wave_workaround.h
     native_qmd.h
     native_query_trace.h
     nx2.h
@@ -159,8 +161,11 @@ add_library(video_core STATIC
     renderer_vulkan/blit_image.h
     renderer_vulkan/fixed_pipeline_state.cpp
     renderer_vulkan/fixed_pipeline_state.h
+    renderer_vulkan/framebuffer_clear_layers.h
     renderer_vulkan/maxwell_to_vk.cpp
     renderer_vulkan/maxwell_to_vk.h
+    renderer_vulkan/pipeline_build_failure.cpp
+    renderer_vulkan/pipeline_build_failure.h
     renderer_vulkan/pipeline_helper.h
     renderer_vulkan/pipeline_optimization.h
     renderer_vulkan/pipeline_statistics.cpp
@@ -202,6 +207,7 @@ add_library(video_core STATIC
     renderer_vulkan/vk_present_manager.h
     renderer_vulkan/vk_query_cache.cpp
     renderer_vulkan/vk_query_cache.h
+    renderer_vulkan/vk_query_copy.h
     renderer_vulkan/vk_rasterizer.cpp
     renderer_vulkan/vk_rasterizer.h
     renderer_vulkan/vk_render_pass_cache.cpp
@@ -264,6 +270,7 @@ add_library(video_core STATIC
     texture_cache/formatter.h
     texture_cache/format_lookup_table.cpp
     texture_cache/format_lookup_table.h
+    texture_cache/host_memory_limit.h
     texture_cache/image_base.cpp
     texture_cache/image_base.h
     texture_cache/image_info.cpp
@@ -296,38 +303,16 @@ add_library(video_core STATIC
     video_core.h
 )
 
-if (ENABLE_LSFG)
+if (ENABLE_FRAME_GEN)
     target_sources(video_core PRIVATE
-        frame_gen/lossless_dll.cpp
-        frame_gen/lossless_dll.h
-        frame_gen/lsfg_translate.cpp
-        frame_gen/lsfg_translate.h
         renderer_vulkan/present/frame_gen.cpp
         renderer_vulkan/present/frame_gen.h
         renderer_vulkan/present/fsr3_frame_gen.cpp
         renderer_vulkan/present/fsr3_frame_gen.h
         renderer_vulkan/present/frame_gen_pacer.cpp
         renderer_vulkan/present/frame_gen_pacer.h
-        renderer_vulkan/present/lsfg_alpha.cpp
-        renderer_vulkan/present/lsfg_alpha.h
-        renderer_vulkan/present/lsfg_beta.cpp
-        renderer_vulkan/present/lsfg_beta.h
-        renderer_vulkan/present/lsfg_chain.cpp
-        renderer_vulkan/present/lsfg_chain.h
-        renderer_vulkan/present/lsfg_common.cpp
-        renderer_vulkan/present/lsfg_common.h
-        renderer_vulkan/present/lsfg_delta.cpp
-        renderer_vulkan/present/lsfg_delta.h
-        renderer_vulkan/present/lsfg_gamma.cpp
-        renderer_vulkan/present/lsfg_gamma.h
-        renderer_vulkan/present/lsfg_generate.cpp
-        renderer_vulkan/present/lsfg_generate.h
-        renderer_vulkan/present/lsfg_mipmaps.cpp
-        renderer_vulkan/present/lsfg_mipmaps.h
-        renderer_vulkan/present/lsfg_shaders.cpp
-        renderer_vulkan/present/lsfg_shaders.h
     )
-    target_compile_definitions(video_core PUBLIC HAS_LSFG)
+    target_compile_definitions(video_core PUBLIC HAS_FRAME_GEN)
 endif()
 
 if (ENABLE_RESHADE)

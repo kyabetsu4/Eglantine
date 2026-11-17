@@ -567,7 +567,8 @@ void SwizzleBlockLinearImage(Tegra::MemoryManager& gpu_memory, GPUVAddr gpu_addr
                 dst(gpu_memory, gpu_addr + guest_offset, subresource_size, &tmp_buffer);
 
             SwizzleTexture(dst, src, bytes_per_block, num_tiles.width, num_tiles.height,
-                           num_tiles.depth, block.height, block.depth, 1, gpu_memory.UsesNativeTiling());
+                           num_tiles.depth, block.height, block.depth, 1,
+                           UsesNativeGobs(gpu_memory.UsesNativeTiling(), info));
         }
 
         host_offset += host_bytes_per_layer;
@@ -918,9 +919,17 @@ boost::container::small_vector<BufferImageCopy, 16> UnswizzleImage(Tegra::Memory
 
         for (s32 layer = 0; layer < info.resources.layers; ++layer) {
             const std::span<u8> dst = output.subspan(host_offset);
-            const std::span<const u8> src = input.subspan(guest_offset + guest_layer_offset);
-            UnswizzleTexture(dst, src, 1U << bpp_log2, num_tiles.width, num_tiles.height,
-                             num_tiles.depth, block.height, block.depth, stride_alignment, gpu_memory.UsesNativeTiling());
+            const size_t src_offset = guest_offset + guest_layer_offset;
+            if (src_offset >= input.size()) {
+                // No guest bytes behind this layer (an image over a range that read as empty):
+                // reading would start past the end of `input`, at null for an empty one.
+                std::fill_n(dst.begin(), (std::min<size_t>)(host_bytes_per_layer, dst.size()), u8{0});
+            } else {
+                UnswizzleTexture(dst, input.subspan(src_offset), 1U << bpp_log2, num_tiles.width,
+                                 num_tiles.height, num_tiles.depth, block.height, block.depth,
+                                 stride_alignment,
+                                 UsesNativeGobs(gpu_memory.UsesNativeTiling(), info));
+            }
             guest_layer_offset += layer_stride;
             host_offset += host_bytes_per_layer;
         }
@@ -1109,7 +1118,7 @@ std::vector<BufferImageCopy> UnswizzleImageRects(Tegra::MemoryManager& gpu_memor
             gpu_memory.ReadBlockUnsafe(row_addr, swizzled.data(), row_bytes);
             UnswizzleTexture(output.subspan(output_offset, bytes), swizzled, 1U << bpp_log2, width,
                              texel_rows, 1, level.block_height, 0, 0,
-                             gpu_memory.UsesNativeTiling());
+                             UsesNativeGobs(gpu_memory.UsesNativeTiling(), info));
             const u32 row_y = row * level.block_rows;
             const u32 y0 = (std::max)(rect.y, row_y);
             const u32 y1 = (std::min)(rect.y + rect.height, row_y + texel_rows);
@@ -1144,6 +1153,7 @@ UnswizzlePlan PlanUnswizzleImageRows(
     }
     const u32 bpp_log2 = BytesPerBlockLog2(info.format);
     plan.bpp_log2 = bpp_log2;
+    plan.maxwell_gobs = info.maxwell_gobs;
     const Extent2D tile_size = DefaultBlockSize(info.format);
     const LevelInfo level_info = MakeLevelInfo(info);
     const s32 num_levels = info.resources.levels;
@@ -1265,7 +1275,7 @@ void ExecuteUnswizzlePlan(Tegra::MemoryManager& gpu_memory, const UnswizzlePlan&
         Tegra::Texture::UnswizzleTexture(output.subspan(r.host_offset, r.host_bytes),
                                          run, 1U << plan.bpp_log2, r.run_tiles, r.tile_rows, 1,
                                          r.block.height, r.block.depth, r.run_alignment,
-                                         gpu_memory.UsesNativeTiling());
+                                         gpu_memory.UsesNativeTiling() && !plan.maxwell_gobs);
     }
 }
 
@@ -1433,6 +1443,49 @@ Extent3D MipBlockSize(const ImageInfo& info, u32 level) {
     const Extent3D level_size = AdjustMipSize(info.size, level);
     const Extent3D num_tiles = AdjustTileSize(level_size, tile_size);
     return AdjustMipBlockSize(num_tiles, level_info.block, level, level_info.num_levels);
+}
+
+void MarkSubresourcesWrittenWhole(const ImageBase& dst, const ImageBase& src,
+                                  std::span<const ImageCopy> copies, std::span<u8> written) {
+    constexpr ImageFlagBits excluded = ImageFlagBits::Rescaled | ImageFlagBits::TrimmedLevels |
+                                       ImageFlagBits::Unbacked | ImageFlagBits::UnwrittenSparse |
+                                       ImageFlagBits::SparseLayers | ImageFlagBits::SparseTiles;
+    if (dst.info.type != ImageType::e2D || src.info.type != ImageType::e2D ||
+        src.info.format != dst.info.format || src.info.astc_opaque != dst.info.astc_opaque ||
+        True((src.flags | dst.flags) & excluded)) {
+        return;
+    }
+    // Alias copies count a compressed extent in blocks, but the backends copy it as texels, so
+    // such a copy writes only part of the image.
+    if (DefaultBlockWidth(dst.info.format) != 1 || DefaultBlockHeight(dst.info.format) != 1) {
+        return;
+    }
+    const s32 layers = dst.info.resources.layers;
+    for (const ImageCopy& copy : copies) {
+        const s32 level = copy.dst_subresource.base_level;
+        if (level < 0 || level >= dst.info.resources.levels) {
+            continue;
+        }
+        const Extent3D size = MipSize(dst.info.size, level);
+        if (copy.dst_offset != Offset3D{} || copy.extent.width < size.width ||
+            copy.extent.height < size.height) {
+            continue;
+        }
+        const s32 first = (std::max)(copy.dst_subresource.base_layer, 0);
+        const s32 last =
+            (std::min)(copy.dst_subresource.base_layer + copy.dst_subresource.num_layers, layers);
+        for (s32 layer = first; layer < last; ++layer) {
+            written[static_cast<size_t>(level * layers + layer)] = 1;
+        }
+    }
+}
+
+bool CopiesWriteWholeImage(const ImageBase& dst, const ImageBase& src,
+                           std::span<const ImageCopy> copies) {
+    std::vector<u8> written(
+        static_cast<size_t>(dst.info.resources.levels * dst.info.resources.layers));
+    MarkSubresourcesWrittenWhole(dst, src, copies, written);
+    return std::ranges::all_of(written, [](u8 whole) { return whole != 0; });
 }
 
 boost::container::small_vector<SwizzleParameters, 16> FullUploadSwizzles(const ImageInfo& info) {

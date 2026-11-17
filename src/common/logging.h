@@ -7,6 +7,8 @@
 #pragma once
 
 #include <chrono>
+#include <exception>
+#include <string>
 #include <algorithm>
 #include <type_traits>
 #include <fmt/ranges.h>
@@ -142,5 +144,12 @@ void Stop();
 /// The global filter will prevent any messages from even being processed if they are filtered.
 void SetGlobalFilter(const Filter& filter);
 void SetColorConsoleBackendEnabled(bool enabled);
+
+/// The message of an exception about to end the process, or why there is none.
+std::string DescribeException(std::exception_ptr exception);
+
+/// Logs (and flushes) why std::terminate ends the process, so an uncaught exception leaves more
+/// than a log cut off mid-line. MSVC keeps one handler per thread; SetCurrentThreadName installs it.
+void InstallTerminateHandler();
 
 } // namespace Common::Log

@@ -182,6 +182,8 @@ public:
     explicit IUserShimScopedObject(Core::System& system_) : ServiceFramework(system_, "IUserShimScopedObject") {
         // clang-format off
         static const FunctionInfo functions[] = {
+            {1, D<&IUserShimScopedObject::Cmd1>, "Cmd1"},
+            {300, D<&IUserShimScopedObject::Cmd300>, "Cmd300"},
             {450, nullptr, "InitializeForSaveData"},
             {451, nullptr, "FinalizeForSaveData"},
             {452, D<&IUserShimScopedObject::OpenSaveData>, "OpenSaveData"},
@@ -193,6 +195,16 @@ public:
         };
         // clang-format on
         RegisterHandlers(functions);
+    }
+
+    Result Cmd1() {
+        LOG_DEBUG(Service_NGC, "(STUBBED) IUserShimScopedObject::Cmd1 called");
+        R_SUCCEED();
+    }
+
+    Result Cmd300() {
+        LOG_DEBUG(Service_NGC, "(STUBBED) IUserShimScopedObject::Cmd300 called");
+        R_SUCCEED();
     }
 
     Result OpenSaveData(Account::Uid unk0, Out<SaveDataHandle> unk1) {

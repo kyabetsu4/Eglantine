@@ -43,6 +43,7 @@
 #include "video_core/host1x/gpu_device_memory_manager.h"
 #include "video_core/renderer_vulkan/blit_image.h"
 #include "video_core/renderer_vulkan/fixed_pipeline_state.h"
+#include "video_core/renderer_vulkan/framebuffer_clear_layers.h"
 #include "video_core/renderer_vulkan/maxwell_to_vk.h"
 #include "video_core/renderer_vulkan/vk_buffer_cache.h"
 #include "video_core/renderer_vulkan/vk_compute_pipeline.h"
@@ -57,6 +58,7 @@
 #include "video_core/renderer_vulkan/vk_update_descriptor.h"
 #include "video_core/shader_cache.h"
 #include "video_core/texture_cache/texture_cache_base.h"
+#include "video_core/textures/texture.h"
 #include "video_core/vulkan_common/vulkan_device.h"
 #include "video_core/vulkan_common/vulkan_wrapper.h"
 #include "video_core/nx2_debug_control.h"
@@ -295,6 +297,8 @@ RasterizerVulkan::RasterizerVulkan(Core::Frontend::EmuWindow& emu_window_, Tegra
 
 RasterizerVulkan::~RasterizerVulkan() {
     VideoCommon::GpuSplit::Get().SetIdleHook(nullptr, nullptr);
+    // The channels are gone by now, and submitting invalidates the state tracker's flags.
+    state_tracker.ClearChannel();
     scheduler.WaitWorker();
     scheduler.Finish();
     delete std::exchange(g_diag_pool, nullptr);
@@ -1067,6 +1071,17 @@ void RasterizerVulkan::Clear(u32 layer_count) {
         FrameDumpPass(framebuffer);
     }
     const VkExtent2D render_area = framebuffer->RenderArea();
+    const u32 base_array_layer = regs.clear_surface.layer;
+    const auto clear_layers =
+        GetFramebufferClearLayers(base_array_layer, layer_count, framebuffer->Layers());
+    if (clear_layers.count != layer_count) {
+        LOG_DEBUG(Render_Vulkan,
+                  "Framebuffer clear layers: base={}, requested={}, clipped={}, framebuffer={}",
+                  base_array_layer, layer_count, clear_layers.count, framebuffer->Layers());
+    }
+    if (clear_layers.count == 0) {
+        return;
+    }
 
     constexpr bool ENABLE_DEFERRED_CLEAR = true;
     const bool color_full_channels = regs.clear_surface.R && regs.clear_surface.G &&
@@ -1092,8 +1107,8 @@ void RasterizerVulkan::Clear(u32 layer_count) {
     VkClearRect clear_rect{
         .rect = regs.clear_control.use_scissor ? GetScissorState(regs, 0, up_scale, down_shift)
                                                : default_scissor,
-        .baseArrayLayer = regs.clear_surface.layer,
-        .layerCount = layer_count,
+        .baseArrayLayer = base_array_layer,
+        .layerCount = clear_layers.count,
     };
     const auto clamp_rect_to_render_area = [render_area](VkRect2D& rect) -> bool {
         const auto clamp_axis = [](s32& offset, u32& extent, u32 limit) {
@@ -1143,7 +1158,7 @@ void RasterizerVulkan::Clear(u32 layer_count) {
         clear_rect.rect.extent.width >= render_area.width &&
         clear_rect.rect.extent.height >= render_area.height;
     const bool can_defer_clear = ENABLE_DEFERRED_CLEAR && (!regs.clear_control.use_scissor || clear_covers_render_area) &&
-                                 regs.clear_surface.layer == 0 &&
+                                 clear_layers.covers_all_layers &&
                                  !scheduler.IsRenderPassActive() &&
                                  (!use_color || color_full_channels) && ds_deferrable;
     if (!can_defer_clear) {
@@ -1256,7 +1271,8 @@ void RasterizerVulkan::DispatchCompute() {
         frame_dump.DrainIfFull();
     }
 
-    ComputePipeline* const pipeline{pipeline_cache.CurrentComputePipeline()};
+    u64 native_key{};
+    ComputePipeline* const pipeline{pipeline_cache.CurrentComputePipeline(native_key)};
     if (!pipeline) {
         if (kepler_compute->IsNativeMode()) throw Shader::RuntimeError("Native compute pipeline unavailable");
         return;
@@ -1273,6 +1289,20 @@ void RasterizerVulkan::DispatchCompute() {
         return;
     }
     const auto& qmd{kepler_compute->launch_description};
+    const auto publish_collision_map = [&] {
+        if (native_key != 0x6e0ae200ee9aa220ULL ||
+            (qmd.const_buffer_enable_mask & 1) == 0) {
+            return;
+        }
+        const auto& constants = qmd.const_buffer_config[0];
+        if (constants.size < 0x3c) {
+            return;
+        }
+        // WaterSurfaceCollisionHeightMap exposes its output handle in CB0.
+        const u32 handle = gpu_memory->Read<u32>(constants.Address() + 0x38);
+        const u32 index = Tegra::Texture::TexturePair(handle, qmd.linked_tsc != 0).first;
+        texture_cache.PublishComputeCollisionImage(index);
+    };
     auto indirect_address = kepler_compute->GetIndirectComputeAddress();
     if (frame_dump.Capturing()) {
         const u64 shader_hash = pipeline->ShaderHash();
@@ -1348,6 +1378,7 @@ void RasterizerVulkan::DispatchCompute() {
             cmdbuf.DispatchIndirect(indirect_buffer, indirect_offset);
         });
         SubmitNx2ListCopies();
+        publish_collision_map();
         return;
     }
     const std::array<u32, 3> dim{qmd.grid_dim_x, qmd.grid_dim_y, qmd.grid_dim_z};
@@ -1364,6 +1395,7 @@ void RasterizerVulkan::DispatchCompute() {
         cmdbuf.Dispatch(dim[0], dim[1], dim[2]);
     });
     SubmitNx2ListCopies();
+    publish_collision_map();
 
     // Log compute dispatch
     if (GPU::Logging::IsActive() &&
@@ -1529,15 +1561,20 @@ void RasterizerVulkan::InnerInvalidation(std::span<const std::pair<DAddr, std::s
 
 bool RasterizerVulkan::OnCPUWrite(DAddr addr, u64 size) {
     DEBUG_ASSERT(addr != 0 || size != 0);
+    bool held;
     {
         std::scoped_lock lock{buffer_cache.mutex};
-        if (buffer_cache.OnCPUWrite(addr, size)) {
-            return true;
-        }
+        held = buffer_cache.OnCPUWrite(addr, size);
     }
     {
+        // Also for a held write: the images over it must not download their older bytes over
+        // it before it is applied (Yoshi and the Mysterious Book's shader code, written where an
+        // image was).
         std::scoped_lock lock{texture_cache.mutex};
         texture_cache.WriteMemory(addr, size);
+    }
+    if (held) {
+        return true;
     }
     pipeline_cache.InvalidateRegion(addr, size);
     return false;
@@ -2973,9 +3010,13 @@ void RasterizerVulkan::BindChannel(Tegra::Control::ChannelState& channel) {
     query_cache.BindToChannel(channel_id);
     state_tracker.ChangeChannel(channel);
     state_tracker.InvalidateState();
+    bound_channel_id = channel_id;
 }
 
 void RasterizerVulkan::ReleaseChannel(s32 channel_id) {
+    if (channel_id == bound_channel_id) {
+        state_tracker.ClearChannel();
+    }
     EraseChannel(channel_id);
     {
         std::scoped_lock lock{buffer_cache.mutex, texture_cache.mutex};
